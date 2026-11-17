@@ -79,6 +79,14 @@ export function bearing(lat1, lon1, lat2, lon2) {
   return (Math.atan2(y, x) * R2D + 360) % 360;
 }
 
+export function groundKm(lat1, lon1, lat2, lon2) {
+  const p1 = lat1 * D2R, p2 = lat2 * D2R, dp = p2 - p1, dl = (lon2 - lon1) * D2R;
+  const h = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+export const fmtLat = (v, d = 3) => `${Math.abs(v).toFixed(d)}°${v >= 0 ? 'N' : 'S'}`;
+export const fmtLon = (v, d = 3) => `${Math.abs(v).toFixed(d)}°${v >= 0 ? 'E' : 'W'}`;
+
 const TH8 = ['เหนือ', 'ตะวันออกเฉียงเหนือ', 'ตะวันออก', 'ตะวันออกเฉียงใต้', 'ใต้', 'ตะวันตกเฉียงใต้', 'ตะวันตก', 'ตะวันตกเฉียงเหนือ'];
 const EN8 = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 export const compassTh = deg => TH8[Math.round(deg / 45) % 8];
@@ -90,7 +98,11 @@ export function motionAt(sat, r, date) {
   const b = positionAt(sat, r, new Date(date.getTime() + 10000));
   if (!a || !b) return null;
   const heading = bearing(a.lat, a.lon, b.lat, b.lon);
-  return { ...a, heading, headingTh: compassTh(heading), headingEn: compassEn(heading), northbound: b.lat >= a.lat };
+  // ความเร็วเทียบพื้นโลก: จุดใต้ดาวเทียมเคลื่อนไปเท่าไรใน 10 วินาที
+  const groundSpeed = groundKm(a.lat, a.lon, b.lat, b.lon) / 10;
+  // ดาวเทียมค้างฟ้าแทบไม่เคลื่อนเทียบพื้นโลก ทิศที่คำนวณได้จึงไม่มีความหมาย
+  const stationary = groundSpeed < 0.05;
+  return { ...a, heading, headingTh: compassTh(heading), headingEn: compassEn(heading), northbound: b.lat >= a.lat, groundSpeed, stationary };
 }
 
 // เส้นทางภาคพื้นดิน (ground track)
