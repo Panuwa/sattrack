@@ -15,6 +15,15 @@ export const GROUPS = [
   { id: 'weather',      name: 'ดาวเทียมอุตุนิยมฯ',   en: 'Weather satellites',             color: '#1098AD', size: 3, on: false },
   { id: 'geo',          name: 'วงโคจรค้างฟ้า (GEO)', en: 'Geostationary',                  color: '#495057', size: 2.6, on: false },
   { id: 'amateur',      name: 'วิทยุสมัครเล่น',      en: 'Amateur radio',                  color: '#D6336C', size: 2.6, on: false },
+  { id: 'globalstar',   name: 'Globalstar',        en: 'Globalstar',                     color: '#F59F00', size: 3, on: false },
+  { id: 'orbcomm',      name: 'ORBCOMM',           en: 'ORBCOMM',                        color: '#20C997', size: 3, on: false },
+  { id: 'intelsat',     name: 'Intelsat',          en: 'Intelsat',                       color: '#74C0FC', size: 3, on: false },
+  { id: 'ses',          name: 'SES (รวม O3b)',      en: 'SES (incl. O3b)',                color: '#FF8787', size: 3, on: false },
+  { id: 'telesat',      name: 'Telesat',           en: 'Telesat',                        color: '#B197FC', size: 3, on: false },
+  { id: 'planet',       name: 'Planet (ถ่ายภาพโลก)', en: 'Planet (Earth imaging)',         color: '#8CE99A', size: 2.4, on: false },
+  { id: 'spire',        name: 'Spire',             en: 'Spire',                          color: '#FFD8A8', size: 2.4, on: false },
+  { id: 'gnss',         name: 'ดาวเทียมนำทางทุกระบบ', en: 'All navigation (GNSS)',         color: '#E599F7', size: 3, on: false },
+  { id: 'sbas',         name: 'SBAS',              en: 'SBAS (GPS augmentation)',        color: '#FFA94D', size: 3, on: false },
 ];
 
 export const GROUP_IDS = GROUPS.map(g => g.id);
