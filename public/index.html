@@ -419,7 +419,7 @@ const COMPASS_EN = { N: 'north', NE: 'northeast', E: 'east', SE: 'southeast', S:
 let lang = 'th';
 try { const saved = localStorage.getItem('lang'); if (saved === 'en' || saved === 'th') lang = saved; } catch {}
 const t = (k, ...a) => { const v = I18N[lang][k]; return typeof v === 'function' ? v(...a) : v; };
-const gName = g => lang === 'en' ? (EN_NAMES[g.id] || g.name) : g.name;
+const gName = g => lang === 'en' ? (EN_NAMES[g.id] || g.en || g.name) : g.name;
 const dirText = deg => lang === 'en' ? COMPASS_EN[compassEn(deg)] : compassTh(deg);
 const locale = () => lang === 'en' ? 'en-GB' : 'th-TH';
 const nf = (x, d) => x.toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
