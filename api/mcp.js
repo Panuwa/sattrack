@@ -1,6 +1,6 @@
 // POST /mcp — MCP server แบบ Streamable HTTP (stateless) ให้ Claude เชื่อมต่อเป็น custom connector
 import { GROUPS, getGroupRecords, getByNorad, searchByName, satellite } from '../lib/celestrak.js';
-import { motionAt, groundTrack, predictPasses, compassTh, compassEn, positionAt, lookFromPos, coverage } from '../public/orbit-core.js';
+import { fmtLat, fmtLon, motionAt, groundTrack, predictPasses, compassTh, compassEn, positionAt, lookFromPos, coverage } from '../public/orbit-core.js';
 
 const SERVER = { name: 'sattrack', version: '1.0.0' };
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
@@ -142,12 +142,14 @@ function describe(r, m) {
     norad_id: r.norad,
     latitude: r3(m.lat),
     longitude: r3(m.lon),
+    position_text: `${fmtLat(m.lat)}, ${fmtLon(m.lon)}`,
     altitude_km: r1(m.alt),
-    speed_km_s: r3(m.speed),
-    heading_deg: r1(m.heading),
-    heading: m.headingEn,
-    heading_th: `ทิศ${m.headingTh}`,
-    moving: m.northbound ? 'northbound (ขึ้นเหนือ)' : 'southbound (ลงใต้)',
+    orbital_speed_km_s: r3(m.speed),
+    ground_speed_km_s: r3(m.groundSpeed),
+    ...(m.stationary
+      ? { moving: 'almost stationary over the ground (geostationary) / แทบหยุดนิ่งเหนือพื้นโลก' }
+      : { heading_deg: r1(m.heading), heading: m.headingEn, heading_th: `ทิศ${m.headingTh}`,
+          moving: m.northbound ? 'northbound (ขึ้นเหนือ)' : 'southbound (ลงใต้)' }),
   };
 }
 
