@@ -87,11 +87,6 @@
   #legend .total { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; color: var(--text-2); font-size: .78rem; }
 
   /* ข้อมูลดาวเทียมที่เลือก */
-  #info {
-    position: fixed; top: calc(60px + env(safe-area-inset-top)); right: 12px; width: 300px; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 10px; padding: 14px; z-index: 12; display: none; max-height: calc(100dvh - 330px); overflow-y: auto;
-  }
-  #info.open { display: block; }
   .info-head { display: flex; align-items: flex-start; gap: 8px; }
   .info-name { font-weight: 600; font-size: 1.05rem; line-height: 1.3; }
   .info-sub { color: var(--text-2); font-size: .8rem; margin-top: 2px; }
@@ -110,6 +105,38 @@
   th, td { text-align: left; padding: 5px 3px; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { color: var(--text-2); font-weight: 500; }
   .note { color: var(--text-2); font-size: .78rem; margin: 8px 0 0; line-height: 1.5; }
+
+
+  /* คอลัมน์ซ้าย: ข้อมูลดาวเทียม + จุดสังเกต */
+  #left { position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 12px; width: 320px; max-height: calc(100dvh - 130px);
+    overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 12; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .card[hidden] { display: none; }
+  /* รายการที่เลือก (ขวาบน) */
+  #selector { position: fixed; top: calc(60px + env(safe-area-inset-top)); right: 12px; width: 260px; z-index: 12;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: none; }
+  #selector.open { display: block; }
+  #sel-list { list-style: none; margin: 6px 0 0; padding: 0; max-height: 34vh; overflow-y: auto; }
+  #sel-list li { display: flex; align-items: center; gap: 7px; padding: 4px 0; font-size: .84rem; }
+  #sel-list li.focus .sel-name { color: #fff; font-weight: 600; }
+  .sel-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); background: none; border: 0; text-align: left; padding: 0; font-size: .84rem; }
+  .mini { background: none; border: 0; color: var(--text-2); padding: 2px 4px; font-size: .8rem; }
+  .mini:hover { color: var(--text); }
+  .sel-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; font-size: .8rem; color: var(--text-2); }
+  .sel-foot select { background: #0B1220; border: 1px solid var(--line); border-radius: 5px; padding: 2px 4px; font-size: .8rem; }
+  .sel-foot .mini { margin-left: auto; }
+  /* ป้ายชื่อบนลูกโลก */
+  #labels { position: fixed; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+  #labels div { position: absolute; transform: translate(-50%, 10px); font-size: .72rem; line-height: 1.15; text-align: center;
+    color: #fff; text-shadow: 0 0 3px #000, 0 0 6px #000; white-space: nowrap; }
+  #labels div small { display: block; color: #B9C6DA; font-size: .66rem; }
+  /* จุดสังเกต */
+  .obs-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .obs-inputs input { width: 100%; background: #0B1220; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: .84rem; }
+  .obs-inputs label { font-size: .74rem; color: var(--text-2); display: block; margin-bottom: 2px; }
+  tr.below td { color: #5E6B82; }
+  td button.linkish { background: none; border: 0; padding: 0; color: var(--text); text-align: left; font-size: .8rem; }
+  td button.linkish:hover { color: var(--accent); }
 
   /* แถบเวลาด้านล่าง */
   footer {
@@ -142,7 +169,9 @@
     #search { width: 100%; }
     #results { width: calc(100vw - 16px); right: auto; left: 50%; transform: translateX(-50%); position: fixed; top: calc(56px + env(safe-area-inset-top)); }
     #legend { display: none; }
-    #info { left: 8px; right: 8px; width: auto; top: auto; bottom: calc(62px + env(safe-area-inset-bottom)); max-height: 46dvh; }
+    #left { left: 8px; right: 8px; width: auto; top: auto; bottom: calc(62px + env(safe-area-inset-bottom)); max-height: 44dvh; }
+    #selector { right: 8px; width: 200px; }
+    #sel-list { max-height: 18vh; }
     #drawer { left: 8px; right: 8px; width: auto; }
     .clock .d { display: none; }
     .status { display: none; }
@@ -156,6 +185,7 @@
 <header>
   <div class="brand">🛰️ <span data-i18n="brand"></span></div>
   <button class="nav-btn" id="groups-btn" aria-expanded="false" aria-controls="drawer" data-i18n="systems"></button>
+  <button class="nav-btn" id="obs-btn" aria-expanded="false" data-i18n="observer"></button>
   <button class="nav-btn" id="claude-btn" data-i18n="useClaude"></button>
   <div class="search-wrap">
     <input type="search" id="search" autocomplete="off" data-i18n-placeholder="searchPh" aria-label="search">
@@ -179,7 +209,20 @@
   <div class="total num" id="total"></div>
 </aside>
 
-<aside id="info" aria-live="polite"></aside>
+<div id="labels"></div>
+
+<div id="left">
+  <section class="card" id="info" hidden></section>
+  <section class="card" id="obs" hidden></section>
+</div>
+
+<aside id="selector">
+  <div style="display:flex;align-items:center"><strong style="font-size:.88rem" id="sel-title"></strong><button class="mini" id="sel-clear" style="margin-left:auto"></button></div>
+  <ul id="sel-list"></ul>
+  <div class="sel-foot"><label for="minel" data-i18n="covEl"></label>
+    <select id="minel"><option value="0">0°</option><option value="10">10°</option><option value="25" selected>25°</option><option value="40">40°</option></select>
+  </div>
+</aside>
 
 <footer>
   <div class="clock num"><span class="t" id="clock">--:--:--</span><span class="d" id="date"></span></div>
@@ -208,50 +251,66 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GROUPS, packOMM, unpackRow, makeRecord, positionAt, motionAt, groundTrack, predictPasses, compassTh, compassEn } from './orbit-core.js';
+import { GROUPS, packOMM, unpackRow, makeRecord, positionAt, motionAt, groundTrack, predictPasses,
+  compassTh, compassEn, lookFromPos, coverage } from './orbit-core.js';
 
 const S = window.satellite;
 const $ = id => document.getElementById(id);
+const MAX_SEL = 30;
 
 // ---------------- ภาษา / i18n ----------------
 const I18N = {
   th: {
-    brand: 'ติดตามดาวเทียม', systems: 'ระบบดาวเทียม', legend: 'กำลังแสดง', useClaude: 'ใช้กับ Claude',
+    brand: 'ติดตามดาวเทียม', systems: 'ระบบดาวเทียม', legend: 'กำลังแสดง', useClaude: 'ใช้กับ Claude', observer: 'AZ / EL',
     searchPh: 'ค้นหาชื่อ หรือเลข NORAD', slower: 'ช้าลง / ย้อนเวลา', faster: 'เร็วขึ้น', pause: 'หยุด / เล่น', now: 'กลับมาเวลาปัจจุบัน',
     total: n => `รวม ${n} ดวง`, none: 'เปิดระบบดาวเทียมจากเมนู “ระบบดาวเทียม”', loading: 'กำลังโหลด…',
     loadFail: (g, e) => `โหลด ${g} ไม่สำเร็จ: ${e}`, notFound: 'ไม่พบในระบบที่เปิดอยู่ ลองเปิดระบบเพิ่มในเมนู “ระบบดาวเทียม”',
     heading: d => `มุ่งหน้าทิศ${d}`, north: 'กำลังขึ้นเหนือ', south: 'กำลังลงใต้',
     lat: 'ละติจูด', lon: 'ลองจิจูด', alt: 'ความสูง', speed: 'ความเร็ว', period: 'โคจรรอบละ', age: 'อายุข้อมูลวงโคจร',
+    cov: el => `รัศมีครอบคลุม (มุมเงย ≥ ${el}°)`,
     km: 'กม.', kms: 'กม./วินาที', min: 'นาที', hr: 'ชม.', days: 'วัน',
-    track: 'ติดตาม', tracking: 'กำลังติดตาม', passes: 'เวลาผ่านเหนือฉัน', close: 'ปิด',
+    track: 'ติดตาม', tracking: 'กำลังติดตาม', passes: 'เวลาผ่านเหนือจุดสังเกต', close: 'ปิด',
     propFail: 'คำนวณตำแหน่งไม่ได้ ข้อมูลวงโคจรอาจเก่าเกินไป',
-    askLoc: 'กำลังขอตำแหน่งของคุณ…', locFail: 'ไม่ได้รับตำแหน่ง อนุญาตให้เบราว์เซอร์เข้าถึงตำแหน่งแล้วกดอีกครั้ง',
+    askLoc: 'กำลังขอตำแหน่งของคุณ…', locFail: 'ไม่ได้รับตำแหน่ง อนุญาตให้เบราว์เซอร์เข้าถึงตำแหน่ง หรือคลิกบนลูกโลกเพื่อเลือกจุดเอง',
     geo: 'ดาวเทียมดวงนี้อยู่วงโคจรค้างฟ้า จะอยู่ที่ตำแหน่งเดิมบนท้องฟ้าตลอด จึงไม่มีช่วงโคจรผ่าน',
     passStart: 'เริ่มเห็น', passMax: 'สูงสุด', passDir: 'จากทิศ → ไปทิศ',
-    passNote: '48 ชม. ข้างหน้า มุมเงยอย่างน้อย 10° (ยังไม่ได้คิดว่ามองเห็นด้วยตาเปล่าได้หรือไม่)',
-    noPass: 'ไม่ผ่านเหนือตำแหน่งของคุณที่มุมเงย 10° ขึ้นไปใน 48 ชม. ข้างหน้า',
+    passNote: '48 ชม. ข้างหน้า มุมเงยอย่างน้อย 10° จากจุดสังเกต',
+    noPass: 'ไม่ผ่านเหนือจุดสังเกตที่มุมเงย 10° ขึ้นไปใน 48 ชม. ข้างหน้า',
     paused: 'หยุด', updated: t => `อัปเดต ${t}`, live: 'เวลาจริง',
+    selTitle: n => `เลือกไว้ ${n}/${MAX_SEL} ดวง`, clearAll: 'ล้างทั้งหมด', info: 'ข้อมูล', remove: 'นำออก',
+    maxSel: `เลือกได้สูงสุด ${MAX_SEL} ดวง นำบางดวงออกก่อน`, covEl: 'พื้นที่ครอบคลุม มุมเงยต่ำสุด',
+    obsTitle: 'จุดสังเกต (AZ / EL)', obsHelp: 'คลิกบนลูกโลก หรือพิมพ์พิกัดแล้วกด “ตั้งจุดนี้”',
+    setPoint: 'ตั้งจุดนี้', myLoc: 'ใช้ตำแหน่งฉัน', clearPoint: 'ลบจุด', badCoord: 'พิกัดไม่ถูกต้อง (ละติจูด −90 ถึง 90, ลองจิจูด −180 ถึง 180)',
+    selSats: 'ดาวเทียมที่เลือก', topSats: el => `มองเห็นสูงสุดตอนนี้ (มุมเงย ≥ ${el}°)`, sat: 'ดาวเทียม', range: 'ระยะ',
+    noneUp: 'ไม่มีดาวเทียมในระบบที่เปิดอยู่ที่มุมเงยถึงเกณฑ์', belowNote: 'แถวสีจางคืออยู่ใต้ขอบฟ้า',
     claudeHelp: 'ใน Claude ไปที่ Settings → Connectors → Add custom connector แล้วใส่ URL นี้',
     claudeEx: 'จากนั้นถามได้เลย เช่น “ตอนนี้ Starlink ดวงไหนอยู่เหนือกรุงเทพฯ กำลังไปทางไหน”',
     copy: 'คัดลอก URL', copied: 'คัดลอกแล้ว', copyFail: 'คัดลอกไม่ได้ ให้เลือกข้อความเอง', globeFail: 'โหลดแผนที่โลกไม่สำเร็จ',
     noWebgl: 'เบราว์เซอร์นี้แสดงลูกโลก 3 มิติไม่ได้ (ไม่รองรับ WebGL)',
   },
   en: {
-    brand: 'Satellite Tracker', systems: 'Constellations', legend: 'Showing', useClaude: 'Use with Claude',
+    brand: 'Satellite Tracker', systems: 'Constellations', legend: 'Showing', useClaude: 'Use with Claude', observer: 'AZ / EL',
     searchPh: 'Search name or NORAD ID', slower: 'Slower / rewind', faster: 'Faster', pause: 'Pause / play', now: 'Back to now',
     total: n => `${n} satellites`, none: 'Turn on a constellation from the “Constellations” menu', loading: 'Loading…',
     loadFail: (g, e) => `Could not load ${g}: ${e}`, notFound: 'Not found in the constellations shown. Turn on more in “Constellations”.',
     heading: d => `Heading ${d}`, north: 'moving north', south: 'moving south',
     lat: 'Latitude', lon: 'Longitude', alt: 'Altitude', speed: 'Speed', period: 'Orbit period', age: 'Orbit data age',
+    cov: el => `Coverage radius (elev ≥ ${el}°)`,
     km: 'km', kms: 'km/s', min: 'min', hr: 'h', days: 'days',
-    track: 'Track', tracking: 'Tracking', passes: 'Passes over me', close: 'Close',
+    track: 'Track', tracking: 'Tracking', passes: 'Passes over point', close: 'Close',
     propFail: 'Position can’t be computed; the orbit data may be too old.',
-    askLoc: 'Asking for your location…', locFail: 'No location received. Allow location access in your browser and try again.',
-    geo: 'This satellite is geostationary: it stays at one point in your sky, so it has no passes.',
+    askLoc: 'Asking for your location…', locFail: 'No location received. Allow location access, or click the globe to pick a point.',
+    geo: 'This satellite is geostationary: it stays at one point in the sky, so it has no passes.',
     passStart: 'Rises', passMax: 'Max', passDir: 'From → to',
-    passNote: 'Next 48 h, at least 10° above the horizon (naked-eye visibility not checked).',
-    noPass: 'No passes above 10° over your location in the next 48 hours.',
+    passNote: 'Next 48 h, at least 10° above the horizon at the observer point.',
+    noPass: 'No passes above 10° over the observer point in the next 48 hours.',
     paused: 'Paused', updated: t => `Updated ${t}`, live: 'Live',
+    selTitle: n => `Selected ${n}/${MAX_SEL}`, clearAll: 'Clear all', info: 'Info', remove: 'Remove',
+    maxSel: `Up to ${MAX_SEL} satellites. Remove one first.`, covEl: 'Coverage min. elevation',
+    obsTitle: 'Observer point (AZ / EL)', obsHelp: 'Click the globe, or type coordinates and press “Set point”.',
+    setPoint: 'Set point', myLoc: 'Use my location', clearPoint: 'Remove point', badCoord: 'Invalid coordinates (lat −90 to 90, lon −180 to 180)',
+    selSats: 'Selected satellites', topSats: el => `Highest in the sky now (elev ≥ ${el}°)`, sat: 'Satellite', range: 'Range',
+    noneUp: 'No satellite in the shown constellations is above the threshold.', belowNote: 'Dimmed rows are below the horizon.',
     claudeHelp: 'In Claude, open Settings → Connectors → Add custom connector and paste this URL.',
     claudeEx: 'Then just ask, for example: “Which Starlink satellites are over Bangkok right now, and which way are they moving?”',
     copy: 'Copy URL', copied: 'Copied', copyFail: 'Copy failed — select the text manually', globeFail: 'Could not load the world map',
@@ -267,6 +326,8 @@ const t = (k, ...a) => { const v = I18N[lang][k]; return typeof v === 'function'
 const gName = g => lang === 'en' ? (EN_NAMES[g.id] || g.name) : g.name;
 const dirText = deg => lang === 'en' ? COMPASS_EN[compassEn(deg)] : compassTh(deg);
 const locale = () => lang === 'en' ? 'en-GB' : 'th-TH';
+const nf = (x, d) => x.toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function applyLang() {
   document.documentElement.lang = lang;
@@ -274,7 +335,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', t(el.dataset.i18nTitle)); });
   document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
-  renderGroups(); renderInfo(); renderClock();
+  renderGroups(); renderSelector(); renderInfo(); renderObs(); renderClock();
 }
 document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => {
   lang = b.dataset.lang;
@@ -286,20 +347,22 @@ document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click
 const state = Object.fromEntries(GROUPS.map(g => [g.id, { ...g, records: null, pos: [], loading: false, points: null }]));
 const SPEEDS = [-3600, -600, -60, -10, 1, 10, 60, 600, 3600];
 let simMs = Date.now(), speedIdx = 4, paused = false;
-let selected = null;   // { gid, i }
+let sels = [];          // ดาวเทียมที่เลือก: { key, gid, i, norad, ... วัตถุ 3 มิติ }
+let focusKey = null;    // ดวงที่แสดงข้อมูลในแผงซ้าย
 let following = false;
-let observer = null, passesHtml = null;
+let minEl = 25;
+let observer = null;    // { lat, lon }
+let passesHtml = null;
 const simTime = () => new Date(simMs);
+const focusSel = () => sels.find(s => s.key === focusKey) || null;
+const recOf = s => state[s.gid].records[s.i];
+const posOf = s => state[s.gid].pos[s.i];
 
 // ---------------- ลูกโลก 3 มิติ ----------------
 const container = $('globe');
 let renderer;
-try {
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-} catch {
-  container.innerHTML = `<p style="padding:80px 20px;text-align:center">${t('noWebgl')}</p>`;
-  throw new Error('no webgl');
-}
+try { renderer = new THREE.WebGLRenderer({ antialias: true }); }
+catch { container.innerHTML = `<p style="padding:80px 20px;text-align:center">${t('noWebgl')}</p>`; throw new Error('no webgl'); }
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 container.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -309,7 +372,6 @@ controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.enablePan = false; controls.minDistance = 1.25; controls.maxDistance = 30;
 controls.rotateSpeed = 0.5; controls.zoomSpeed = 0.8;
 
-// lat/lon/alt → ตำแหน่ง 3 มิติ (รัศมีโลก = 1)
 const RE = 6371;
 function toXYZ(lat, lon, altKm, out, k = 0) {
   const r = 1 + altKm / RE, la = lat * Math.PI / 180, lo = lon * Math.PI / 180;
@@ -318,18 +380,18 @@ function toXYZ(lat, lon, altKm, out, k = 0) {
   out[k + 2] = -r * Math.cos(la) * Math.sin(lo);
   return out;
 }
-function setCameraOver(lat, lon, dist) {
-  const v = toXYZ(lat, lon, 0, [0, 0, 0]);
-  camera.position.set(v[0] * dist, v[1] * dist, v[2] * dist);
-  camera.lookAt(0, 0, 0);
+const toVec = (lat, lon, alt) => { const a = toXYZ(lat, lon, alt, [0, 0, 0]); return new THREE.Vector3(a[0], a[1], a[2]); };
+const fromVec = v => { const n = v.clone().normalize(); return { lat: Math.asin(n.y) * 180 / Math.PI, lon: Math.atan2(-n.z, n.x) * 180 / Math.PI }; };
+{
+  const d = window.innerWidth < window.innerHeight ? 3.2 / Math.pow(window.innerWidth / window.innerHeight, 0.8) : 3.2;
+  camera.position.copy(toVec(15, 100, 0).multiplyScalar(d)); camera.lookAt(0, 0, 0);
 }
-setCameraOver(15, 100, window.innerWidth < window.innerHeight ? 3.2 / Math.pow(window.innerWidth / window.innerHeight, 0.8) : 3.2);
 
-// พื้นผิวโลก: วาดจากข้อมูล Natural Earth ลง canvas แล้วใช้เป็น texture
+// พื้นผิวโลกจากข้อมูล Natural Earth
 const texCanvas = document.createElement('canvas');
 texCanvas.width = 4096; texCanvas.height = 2048;
 const tctx = texCanvas.getContext('2d');
-function paintOcean() {
+{
   const g = tctx.createLinearGradient(0, 0, 0, 2048);
   g.addColorStop(0, '#0A1A2E'); g.addColorStop(.5, '#0E2440'); g.addColorStop(1, '#0A1A2E');
   tctx.fillStyle = g; tctx.fillRect(0, 0, 4096, 2048);
@@ -337,7 +399,6 @@ function paintOcean() {
   for (let lon = -180; lon <= 180; lon += 15) { const x = (lon + 180) / 360 * 4096; tctx.beginPath(); tctx.moveTo(x, 0); tctx.lineTo(x, 2048); tctx.stroke(); }
   for (let lat = -75; lat <= 75; lat += 15) { const y = (90 - lat) / 180 * 2048; tctx.beginPath(); tctx.moveTo(0, y); tctx.lineTo(4096, y); tctx.stroke(); }
 }
-paintOcean();
 const earthTex = new THREE.CanvasTexture(texCanvas);
 earthTex.colorSpace = THREE.SRGBColorSpace;
 earthTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -356,20 +417,28 @@ function drawGeo(geom, fill) {
   if (geom.type === 'FeatureCollection') geom.features.forEach(f => add(f.geometry)); else if (geom.type === 'Feature') add(geom.geometry); else add(geom);
   tctx.beginPath();
   for (const poly of rings) for (const ring of poly) {
-    let prev = null;
-    ring.forEach((c, i) => {
-      const [x, y] = P(c);
-      // เส้นที่ข้ามเส้นแบ่งวันสากล: ยกปากกาขึ้นแทนการลากเส้นยาวข้ามแผนที่
-      if (i === 0) tctx.moveTo(x, y);
-      else if (prev && Math.abs(c[0] - prev[0]) > 180) {
-        if (fill && c[1] < -60) {
-          // แอนตาร์กติกา: อ้อมไปปิดรูปทางขอบล่าง (ขั้วโลกใต้)
-          const [px, py] = P(prev), ex = prev[0] > 0 ? 4096 : 0;
-          tctx.lineTo(ex, py); tctx.lineTo(ex, 2048); tctx.lineTo(4096 - ex, 2048); tctx.lineTo(4096 - ex, y); tctx.lineTo(x, y);
-        } else tctx.moveTo(x, y);
-      } else tctx.lineTo(x, y);
-      prev = c;
-    });
+    if (!fill) {
+      // เส้นพรมแดน: ยกปากกาเมื่อข้ามเส้นแบ่งวันสากล
+      let prev = null;
+      ring.forEach((c, i) => { const [x, y] = P(c); if (i === 0 || Math.abs(c[0] - prev[0]) > 180) tctx.moveTo(x, y); else tctx.lineTo(x, y); prev = c; });
+      continue;
+    }
+    // พื้นที่: คลี่ลองจิจูดให้ต่อเนื่อง แล้ววาดซ้ำที่ ±360° (แก้รูปที่ข้ามเส้นแบ่งวันสากล เช่น รัสเซีย ฟิจิ แอนตาร์กติกา)
+    const u = []; let off = 0, prev = null;
+    for (const c of ring) {
+      if (prev) { const d = c[0] - prev[0]; if (d > 180) off -= 360; else if (d < -180) off += 360; }
+      u.push([c[0] + off, c[1]]); prev = c;
+    }
+    const first = u[0], last = u[u.length - 1];
+    if (Math.abs(last[0] - first[0]) > 180) {
+      // วงรอบขั้วโลก (แอนตาร์กติกา): ปิดรูปผ่านขั้วโลก
+      const pole = u.reduce((a, c) => a + c[1], 0) / u.length < 0 ? -90 : 90;
+      u.push([last[0], pole], [first[0], pole]);
+    }
+    for (const shift of [-360, 0, 360]) {
+      u.forEach((c, i) => { const [x, y] = P([c[0] + shift, c[1]]); if (i === 0) tctx.moveTo(x, y); else tctx.lineTo(x, y); });
+      tctx.closePath();
+    }
   }
   if (fill) { tctx.fillStyle = '#1E2C40'; tctx.fill('nonzero'); tctx.strokeStyle = '#3E5576'; tctx.lineWidth = 2; tctx.stroke(); }
   else { tctx.strokeStyle = 'rgba(110,140,180,.45)'; tctx.lineWidth = 1.2; tctx.stroke(); }
@@ -380,14 +449,11 @@ fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json').then(
   earthTex.needsUpdate = true;
 }).catch(() => setStatus(t('globeFail')));
 
-// ชั้นบรรยากาศ
 scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.025, 64, 48), new THREE.ShaderMaterial({
   side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   vertexShader: 'varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: 'varying vec3 vN; void main(){ float i = pow(0.75 - dot(vN, vec3(0.0,0.0,1.0)), 3.0); gl_FragColor = vec4(0.30,0.55,1.0,1.0) * i; }',
 })));
-
-// ดาวพื้นหลัง
 {
   const n = 1500, arr = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
@@ -398,35 +464,28 @@ scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.025, 64, 48), new THREE.Shad
   scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8899bb, size: 1.2, sizeAttenuation: false })));
 }
 
-// จุดกลม (texture) สำหรับดาวเทียม
-const dotTex = (() => {
+const circleTex = (stroke) => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
-  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.beginPath(); x.arc(32, 32, 28, 0, Math.PI * 2); x.fill();
-  const tx = new THREE.CanvasTexture(c); return tx;
-})();
+  const x = c.getContext('2d'); x.beginPath(); x.arc(32, 32, stroke ? 26 : 28, 0, Math.PI * 2);
+  if (stroke) { x.strokeStyle = '#fff'; x.lineWidth = 6; x.stroke(); } else { x.fillStyle = '#fff'; x.fill(); }
+  return new THREE.CanvasTexture(c);
+};
+const dotTex = circleTex(false), ringTex = circleTex(true);
 
 function makePoints(g) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(g.records.length * 3), 3));
-  const mat = new THREE.PointsMaterial({ color: g.color, size: Math.max(2.5, g.size * 2.2), sizeAttenuation: false, map: dotTex, alphaTest: 0.5, transparent: false });
-  const pts = new THREE.Points(geo, mat);
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: g.color, size: Math.max(2.5, g.size * 2.2), sizeAttenuation: false, map: dotTex, alphaTest: 0.5 }));
   pts.frustumCulled = false;
   scene.add(pts);
   g.points = pts;
 }
 
-// วงโคจรของดวงที่เลือก + วงแหวนไฮไลต์
-const orbitLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .55 }));
-orbitLine.frustumCulled = false; scene.add(orbitLine);
-const ringTex = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const x = c.getContext('2d'); x.strokeStyle = '#fff'; x.lineWidth = 6; x.beginPath(); x.arc(32, 32, 26, 0, Math.PI * 2); x.stroke();
-  return new THREE.CanvasTexture(c);
-})();
-const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, sizeAttenuation: false, depthTest: false, transparent: true }));
-ring.scale.set(0.045, 0.045, 1); ring.visible = false; scene.add(ring);
-let observerDot = null;
-let orbitAt = 0;
+// จุดสังเกต + เส้นสายตาไปยังดาวเทียมที่เลือก
+const obsPin = new THREE.Mesh(new THREE.SphereGeometry(0.009, 16, 12), new THREE.MeshBasicMaterial({ color: 0xFFD43B }));
+obsPin.visible = false; scene.add(obsPin);
+const losLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xFFD43B, transparent: true, opacity: .7 }));
+losLines.frustumCulled = false; scene.add(losLines);
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -435,8 +494,6 @@ function resize() {
 window.addEventListener('resize', resize); resize();
 
 // ---------------- ข้อมูล ----------------
-// ดึงข้อมูลวงโคจร: ลองผ่านเซิร์ฟเวอร์ของเราก่อน (api/tle) ถ้าไม่มี (เช่น เปิดบน GitHub Pages
-// หรือ api ยังไม่ถูก deploy) จะดึงจาก CelesTrak โดยตรง และเก็บแคชไว้ในเบราว์เซอร์ 2 ชั่วโมง
 const CACHE_MS = 2 * 60 * 60 * 1000;
 async function fetchRows(id) {
   try {
@@ -444,10 +501,7 @@ async function fetchRows(id) {
     if (res.ok) { const body = await res.json(); if (Array.isArray(body.rows)) return body.rows; }
   } catch {}
   const key = `omm:${id}`;
-  try {
-    const hit = JSON.parse(localStorage.getItem(key) || 'null');
-    if (hit && Date.now() - hit.at < CACHE_MS) return hit.rows;
-  } catch {}
+  try { const hit = JSON.parse(localStorage.getItem(key) || 'null'); if (hit && Date.now() - hit.at < CACHE_MS) return hit.rows; } catch {}
   const res = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${encodeURIComponent(id)}&FORMAT=json`);
   if (!res.ok) throw new Error(`CelesTrak HTTP ${res.status}`);
   const text = await res.text();
@@ -456,7 +510,6 @@ async function fetchRows(id) {
   try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), rows })); } catch {}
   return rows;
 }
-
 async function loadGroup(g) {
   if (g.records || g.loading) return;
   g.loading = true; renderGroups();
@@ -470,7 +523,6 @@ async function loadGroup(g) {
     setStatus(t('loadFail', gName(g), err.message));
   } finally { g.loading = false; renderGroups(); }
 }
-
 function computeGroup(g, when) {
   const arr = g.points.geometry.attributes.position.array;
   g.pos.length = g.records.length;
@@ -483,42 +535,129 @@ function computeGroup(g, when) {
   g.points.visible = g.on;
 }
 
+// ---------------- ดาวเทียมที่เลือก (สูงสุด 30) ----------------
+const Y = new THREE.Vector3(0, 1, 0);
+function buildSel(gid, i) {
+  const g = state[gid], r = g.records[i];
+  const color = new THREE.Color(g.color).lerp(new THREE.Color('#ffffff'), .35);
+  const orbit = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color, transparent: true, opacity: .85 }));
+  orbit.frustumCulled = false;
+  const cov = new THREE.Group();
+  const cap = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x4DA3FF, transparent: true, opacity: .22, depthWrite: false, side: THREE.DoubleSide }));
+  const edge = new THREE.LineLoop(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x8CC4FF, transparent: true, opacity: .8 }));
+  cov.add(cap, edge);
+  const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex, color, sizeAttenuation: false, depthTest: false, transparent: true }));
+  ring.scale.set(0.035, 0.035, 1);
+  scene.add(orbit, cov, ring);
+  const label = document.createElement('div');
+  $('labels').appendChild(label);
+  return { key: `${gid}:${r.norad}`, gid, i, norad: r.norad, orbit, cov, cap, edge, ring, label, orbitAt: -Infinity, covAlt: null, covEl: null };
+}
+function disposeSel(s) {
+  scene.remove(s.orbit, s.cov, s.ring);
+  [s.orbit, s.cap, s.edge].forEach(o => { o.geometry.dispose(); o.material.dispose(); });
+  s.ring.material.dispose();
+  s.label.remove();
+}
+
+function addSel(gid, i, focus = true) {
+  const r = state[gid].records[i];
+  let s = sels.find(x => x.key === `${gid}:${r.norad}`);
+  if (!s) {
+    if (sels.length >= MAX_SEL) { setStatus(t('maxSel')); flashSelector(); return; }
+    s = buildSel(gid, i); sels.push(s);
+  }
+  if (focus) { focusKey = s.key; following = true; passesHtml = null; }
+  updateSel(s, true);
+  renderSelector(); renderInfo(); renderObs();
+}
+function removeSel(key) {
+  const k = sels.findIndex(s => s.key === key); if (k < 0) return;
+  disposeSel(sels[k]); sels.splice(k, 1);
+  if (focusKey === key) { focusKey = sels.length ? sels[sels.length - 1].key : null; following = false; passesHtml = null; }
+  renderSelector(); renderInfo(); renderObs(); updateLos();
+}
+function clearSels() { sels.forEach(disposeSel); sels = []; focusKey = null; following = false; renderSelector(); renderInfo(); renderObs(); updateLos(); }
+function flashSelector() { const el = $('selector'); el.animate?.([{ borderColor: '#FF6B6B' }, { borderColor: '' }], { duration: 900 }); }
+
+function capGeometry(angDeg) {
+  const th = Math.max(angDeg, 0.05) * Math.PI / 180;
+  const capGeo = new THREE.SphereGeometry(1.003, 64, 12, 0, Math.PI * 2, 0, th);
+  const n = 128, pts = new Float32Array(n * 3);
+  for (let k = 0; k < n; k++) {
+    const ph = k / n * Math.PI * 2;
+    pts[k * 3] = 1.004 * Math.sin(th) * Math.cos(ph); pts[k * 3 + 1] = 1.004 * Math.cos(th); pts[k * 3 + 2] = 1.004 * Math.sin(th) * Math.sin(ph);
+  }
+  const edgeGeo = new THREE.BufferGeometry(); edgeGeo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  return [capGeo, edgeGeo];
+}
+
+function updateSel(s, force = false) {
+  const p = posOf(s), r = recOf(s), on = state[s.gid].on && !!p;
+  s.ring.visible = s.cov.visible = s.orbit.visible = on;
+  if (!on) return;
+  const v = toVec(p.lat, p.lon, p.alt);
+  s.ring.position.copy(v);
+  s.ring.scale.setScalar(s.key === focusKey ? 0.05 : 0.035);
+  // พื้นที่ครอบคลุม: สร้าง geometry ใหม่เมื่อความสูงหรือมุมเงยเปลี่ยน
+  if (force || s.covEl !== minEl || Math.abs(p.alt - s.covAlt) > 2) {
+    const ang = coverage(p.alt, minEl).angleDeg;
+    const [capGeo, edgeGeo] = capGeometry(ang);
+    // footprint ใหญ่ (เช่น GPS) ให้จางลง จะได้ไม่ทับทั้งลูกโลก
+    s.cap.material.opacity = Math.min(0.24, Math.max(0.05, 0.24 * 15 / Math.max(ang, 1)));
+    s.cap.geometry.dispose(); s.edge.geometry.dispose();
+    s.cap.geometry = capGeo; s.edge.geometry = edgeGeo;
+    s.covAlt = p.alt; s.covEl = minEl;
+  }
+  s.cov.quaternion.setFromUnitVectors(Y, v.clone().normalize());
+  // วงโคจร: คำนวณใหม่เมื่อเวลาเลื่อนไปมากพอ
+  if (force || Math.abs(simMs - s.orbitAt) > Math.max(30000, r.periodMin * 60000 / 40)) {
+    const per = Math.min(r.periodMin, 1440), step = Math.max(per / 240, 0.25);
+    const pts = groundTrack(S, r, new Date(simMs - per * 0.5 * 60000), per, step);
+    const arr = new Float32Array(pts.length * 3);
+    pts.forEach((q, k) => toXYZ(q.lat, q.lon, q.alt, arr, k * 3));
+    s.orbit.geometry.dispose();
+    s.orbit.geometry = new THREE.BufferGeometry();
+    s.orbit.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    s.orbitAt = simMs;
+  }
+  const short = r.name.replace(/^STARLINK-/, '').replace(/^ONEWEB-/, '');
+  const html = `${esc(short)}<small>${Math.round(p.alt)} ${t('km')}</small>`;
+  if (s.label.innerHTML !== html) s.label.innerHTML = html;
+}
+
+function updateLos() {
+  const segs = [];
+  if (observer) {
+    const o = toVec(observer.lat, observer.lon, 0);
+    for (const s of sels) {
+      const p = posOf(s); if (!p || !state[s.gid].on) continue;
+      if (lookFromPos(S, observer, p).el > 0) { const v = toVec(p.lat, p.lon, p.alt); segs.push(o.x, o.y, o.z, v.x, v.y, v.z); }
+    }
+  }
+  losLines.geometry.dispose();
+  losLines.geometry = new THREE.BufferGeometry();
+  losLines.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(segs), 3));
+}
+
+// ---------------- อัปเดตทุกช่วงเวลา ----------------
+let lastObsRender = 0;
 function updateAll() {
   const when = simTime();
   for (const g of Object.values(state)) {
     if (g.points) g.points.visible = g.on;
     if (g.on && g.records) computeGroup(g, when);
   }
-  if (selected) {
-    const p = state[selected.gid].pos[selected.i];
-    ring.visible = !!p;
-    if (p) { const v = toXYZ(p.lat, p.lon, p.alt, [0, 0, 0]); ring.position.set(v[0], v[1], v[2]); }
-    const r = state[selected.gid].records[selected.i];
-    if (Math.abs(simMs - orbitAt) > Math.max(30000, r.periodMin * 60000 / 40)) drawOrbit();
-    renderInfoLive();
-  }
+  sels.forEach(s => updateSel(s));
+  updateLos();
+  renderInfoLive();
+  if (observer && performance.now() - lastObsRender > 900) { lastObsRender = performance.now(); renderObsLive(); }
   renderClock();
 }
 
-function drawOrbit() {
-  if (!selected) { orbitLine.visible = false; return; }
-  const r = state[selected.gid].records[selected.i];
-  const per = Math.min(r.periodMin, 1440), step = Math.max(per / 240, 0.25);
-  const pts = groundTrack(S, r, new Date(simMs - per * 0.5 * 60000), per, step);
-  const arr = new Float32Array(pts.length * 3);
-  pts.forEach((p, k) => toXYZ(p.lat, p.lon, p.alt, arr, k * 3));
-  orbitLine.geometry.dispose();
-  orbitLine.geometry = new THREE.BufferGeometry();
-  orbitLine.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-  orbitLine.material.color.set(state[selected.gid].color).lerp(new THREE.Color('#ffffff'), .45);
-  orbitLine.visible = true;
-  orbitAt = simMs;
-}
-
-// ---------------- เลือก / คลิก / ชี้ ----------------
+// ---------------- คลิก / ชี้ ----------------
 const tmpV = new THREE.Vector3();
 function visibleFromCamera(x, y, z) {
-  // ดาวเทียมถูกโลกบังหรือไม่
   const C = camera.position, dx = x - C.x, dy = y - C.y, dz = z - C.z;
   const L = Math.hypot(dx, dy, dz), ux = dx / L, uy = dy / L, uz = dz / L;
   const b = C.x * ux + C.y * uy + C.z * uz, c = C.lengthSq() - 1, disc = b * b - c;
@@ -526,6 +665,7 @@ function visibleFromCamera(x, y, z) {
   const t1 = -b - Math.sqrt(disc);
   return t1 < 0 || t1 > L;
 }
+function screenOf(v, W, H) { tmpV.copy(v).project(camera); return { x: (tmpV.x + 1) / 2 * W, y: (1 - tmpV.y) / 2 * H, z: tmpV.z }; }
 function pick(clientX, clientY, maxPx) {
   const rect = renderer.domElement.getBoundingClientRect(), W = rect.width, H = rect.height;
   const mx = clientX - rect.left, my = clientY - rect.top;
@@ -545,60 +685,78 @@ function pick(clientX, clientY, maxPx) {
   }
   return best;
 }
+const raycaster = new THREE.Raycaster();
+function pickEarth(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2((clientX - rect.left) / rect.width * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObject(earth, false)[0];
+  return hit ? fromVec(hit.point) : null;
+}
 
 let down = null;
 renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, moved: false, type: e.pointerType }; });
 renderer.domElement.addEventListener('pointermove', e => {
   if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) {
     down.moved = true;
-    if (following) { following = false; renderInfo(); }   // ลากลูกโลกเอง = เลิกติดตาม
+    if (following) { following = false; renderInfo(); }
   }
   if (!down && e.pointerType === 'mouse') hover(e);
 });
 renderer.domElement.addEventListener('pointerup', e => {
   if (down && !down.moved) {
     const hit = pick(e.clientX, e.clientY, down.type === 'touch' ? 22 : 12);
-    if (hit) select(hit, true);
+    if (hit) addSel(hit.gid, hit.i);
+    else { const ll = pickEarth(e.clientX, e.clientY); if (ll) setObserver(ll.lat, ll.lon); }
   }
   down = null;
 });
 renderer.domElement.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
-
 let hoverRaf = 0;
 function hover(e) {
   if (hoverRaf) return;
   hoverRaf = requestAnimationFrame(() => {
     hoverRaf = 0;
     const hit = pick(e.clientX, e.clientY, 10), tip = $('tip');
-    renderer.domElement.style.cursor = hit ? 'pointer' : '';
+    renderer.domElement.style.cursor = hit ? 'pointer' : 'crosshair';
     if (!hit) { tip.style.display = 'none'; return; }
     tip.textContent = state[hit.gid].records[hit.i].name;
     tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.style.display = 'block';
   });
 }
 
-function select(sel, follow) {
-  selected = sel; following = follow; passesHtml = null;
-  orbitAt = -Infinity;
-  updateAll(); drawOrbit(); renderInfo();
-  $('info').classList.add('open');
+// ---------------- แผงรายการที่เลือก ----------------
+function renderSelector() {
+  $('selector').classList.toggle('open', sels.length > 0);
+  $('sel-title').textContent = t('selTitle', sels.length);
+  $('sel-clear').textContent = t('clearAll');
+  $('sel-list').innerHTML = sels.map(s => {
+    const g = state[s.gid], r = recOf(s);
+    return `<li class="${s.key === focusKey ? 'focus' : ''}"><span class="sw" style="background:${g.color}"></span>
+      <button class="sel-name" data-focus="${s.key}" title="${t('info')}">${esc(r.name)}</button>
+      <button class="mini" data-remove="${s.key}" aria-label="${t('remove')} ${esc(r.name)}">✕</button></li>`;
+  }).join('');
 }
-function clearSelection() {
-  selected = null; following = false; ring.visible = false; orbitLine.visible = false;
-  $('info').classList.remove('open');
-}
+$('sel-list').addEventListener('click', e => {
+  const f = e.target.closest('[data-focus]'), x = e.target.closest('[data-remove]');
+  if (x) return removeSel(x.dataset.remove);
+  if (f) { focusKey = f.dataset.focus; following = true; passesHtml = null; renderSelector(); renderInfo(); sels.forEach(s => updateSel(s)); }
+});
+$('sel-clear').onclick = clearSels;
+$('minel').addEventListener('change', e => { minEl = Number(e.target.value); sels.forEach(s => updateSel(s)); renderInfoLive(); renderObs(); });
 
-// ---------------- แผงข้อมูล ----------------
+// ---------------- แผงข้อมูลดวงที่โฟกัส ----------------
 function fmtPeriod(m) { return m < 200 ? `${m.toFixed(1)} ${t('min')}` : `${(m / 60).toFixed(1)} ${t('hr')}`; }
 function renderInfo() {
-  const box = $('info');
-  if (!selected) return;
-  const g = state[selected.gid], r = g.records[selected.i];
+  const box = $('info'), s = focusSel();
+  if (!s) { box.hidden = true; return; }
+  const g = state[s.gid], r = recOf(s);
+  box.hidden = false;
   box.innerHTML = `
     <div class="info-head">
-      <div><div class="info-name">${r.name}</div>
+      <div><div class="info-name">${esc(r.name)}</div>
       <div class="info-sub"><span class="sw" style="display:inline-block;background:${g.color};vertical-align:-1px"></span> ${gName(g)} · NORAD ${r.norad}${r.intl ? ' · ' + r.intl : ''}</div></div>
-      <button class="x" id="info-x" aria-label="${t('close')}">✕</button>
+      <button class="x" id="info-x" aria-label="${t('remove')}">✕</button>
     </div>
     <div id="info-live"></div>
     <div class="actions">
@@ -606,18 +764,23 @@ function renderInfo() {
       <button class="btn" id="passes-btn">${t('passes')}</button>
     </div>
     <div id="passes">${passesHtml ? passesHtml() : ''}</div>`;
-  $('info-x').onclick = clearSelection;
+  $('info-x').onclick = () => removeSel(s.key);
   $('track-btn').onclick = () => { following = !following; renderInfo(); };
   $('passes-btn').onclick = findPasses;
   renderInfoLive();
 }
 function renderInfoLive() {
-  const live = $('info-live');
-  if (!selected || !live) return;
-  const r = state[selected.gid].records[selected.i], m = motionAt(S, r, simTime());
+  const live = $('info-live'), s = focusSel();
+  if (!s || !live) return;
+  const r = recOf(s), m = motionAt(S, r, simTime());
   if (!m) { live.innerHTML = `<p class="note">${t('propFail')}</p>`; return; }
   const age = (simMs - new Date(r.epoch + 'Z')) / 86400000;
-  const nf = (x, d) => x.toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
+  const cov = coverage(m.alt, minEl);
+  let look = '';
+  if (observer) {
+    const l = lookFromPos(S, observer, m);
+    look = `<dt>AZ / EL</dt><dd>${nf(l.az, 1)}° / ${nf(l.el, 1)}°</dd><dt>${t('range')}</dt><dd>${nf(l.rangeKm, 0)} ${t('km')}</dd>`;
+  }
   live.innerHTML = `
     <div class="heading">
       <div class="arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" style="transform:rotate(${m.heading}deg)"><path d="M9 1 L15 16 L9 12 L3 16 Z" fill="currentColor"/></svg></div>
@@ -628,15 +791,16 @@ function renderInfoLive() {
       <dt>${t('lon')}</dt><dd>${nf(m.lon, 3)}°</dd>
       <dt>${t('alt')}</dt><dd>${nf(m.alt, 0)} ${t('km')}</dd>
       <dt>${t('speed')}</dt><dd>${nf(m.speed, 2)} ${t('kms')}</dd>
+      <dt>${t('cov', minEl)}</dt><dd>${nf(cov.radiusKm, 0)} ${t('km')}</dd>
+      ${look}
       <dt>${t('period')}</dt><dd>${fmtPeriod(r.periodMin)}</dd>
       <dt>${t('age')}</dt><dd>${nf(age, 1)} ${t('days')}</dd>
     </dl>`;
 }
-
 function findPasses() {
-  const out = $('passes');
+  const out = $('passes'), s = focusSel(); if (!s) return;
   const run = () => {
-    const r = state[selected.gid].records[selected.i];
+    const r = recOf(s);
     if (r.periodMin > 1300 && r.periodMin < 1580) { passesHtml = () => `<p class="note">${t('geo')}</p>`; }
     else {
       const ps = predictPasses(S, r, observer, simTime(), 48, 10, 8);
@@ -653,14 +817,97 @@ function findPasses() {
   };
   if (observer) return run();
   out.innerHTML = `<p class="note">${t('askLoc')}</p>`;
-  navigator.geolocation.getCurrentPosition(pos => {
-    observer = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-    observerDot = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    const v = toXYZ(observer.lat, observer.lon, 0, [0, 0, 0]); observerDot.position.set(v[0], v[1], v[2]);
-    scene.add(observerDot);
-    run();
-  }, () => { out.innerHTML = `<p class="note">${t('locFail')}</p>`; }, { timeout: 10000 });
+  navigator.geolocation.getCurrentPosition(pos => { setObserver(pos.coords.latitude, pos.coords.longitude); run(); },
+    () => { out.innerHTML = `<p class="note">${t('locFail')}</p>`; }, { timeout: 10000 });
 }
+
+// ---------------- จุดสังเกต AZ / EL ----------------
+function setObserver(lat, lon) {
+  observer = { lat, lon };
+  obsPin.position.copy(toVec(lat, lon, 0)); obsPin.visible = true;
+  passesHtml = null;
+  $('obs').hidden = false; $('obs-btn').setAttribute('aria-expanded', 'true');
+  renderObs(); renderInfo(); updateLos();
+}
+function clearObserver() {
+  observer = null; obsPin.visible = false; updateLos(); renderObs(); renderInfo();
+}
+function renderObs() {
+  const box = $('obs');
+  if (box.hidden) return;
+  box.innerHTML = `
+    <div class="info-head"><div class="info-name" style="font-size:.98rem">${t('obsTitle')}</div>
+      <button class="x" id="obs-x" aria-label="${t('close')}">✕</button></div>
+    <p class="note" style="margin-top:4px">${t('obsHelp')}</p>
+    <div class="obs-inputs">
+      <div><label for="obs-lat">${t('lat')}</label><input id="obs-lat" inputmode="decimal" value="${observer ? observer.lat.toFixed(4) : ''}" placeholder="13.7563"></div>
+      <div><label for="obs-lon">${t('lon')}</label><input id="obs-lon" inputmode="decimal" value="${observer ? observer.lon.toFixed(4) : ''}" placeholder="100.5018"></div>
+    </div>
+    <div class="actions">
+      <button class="btn on" id="obs-set">${t('setPoint')}</button>
+      <button class="btn" id="obs-me">${t('myLoc')}</button>
+      ${observer ? `<button class="btn" id="obs-clear">${t('clearPoint')}</button>` : ''}
+    </div>
+    <p class="note" id="obs-err" hidden></p>
+    <div id="obs-live"></div>`;
+  $('obs-x').onclick = () => { box.hidden = true; $('obs-btn').setAttribute('aria-expanded', 'false'); };
+  $('obs-set').onclick = () => {
+    const lat = parseFloat($('obs-lat').value), lon = parseFloat($('obs-lon').value);
+    if (!(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) { const e = $('obs-err'); e.textContent = t('badCoord'); e.hidden = false; return; }
+    setObserver(lat, lon);
+    following = false; renderInfo();
+    camera.position.copy(toVec(lat, lon, 0).multiplyScalar(camera.position.length()));
+  };
+  $('obs-me').onclick = () => navigator.geolocation.getCurrentPosition(
+    p => setObserver(p.coords.latitude, p.coords.longitude),
+    () => { const e = $('obs-err'); e.textContent = t('locFail'); e.hidden = false; }, { timeout: 10000 });
+  if (observer) $('obs-clear').onclick = clearObserver;
+  renderObsLive();
+}
+let topList = [];
+function renderObsLive() {
+  const live = $('obs-live');
+  if (!live || !observer) { if (live) live.innerHTML = ''; return; }
+  const row = (name, l, extra = '') => `<tr class="${l.el < 0 ? 'below' : ''}"><td>${name}</td><td title="${dirText(l.az)}">${nf(l.az, 1)}°</td><td>${nf(l.el, 1)}°</td><td>${nf(l.rangeKm, 0)}</td>${extra}</tr>`;
+  const head = `<thead><tr><th>${t('sat')}</th><th>AZ</th><th>EL</th><th>${t('range')} (${t('km')})</th></tr></thead>`;
+  let html = '';
+  if (sels.length) {
+    html += `<p class="panel-title" style="margin:12px 0 0">${t('selSats')}</p><table class="num">${head}<tbody>${
+      sels.map(s => { const p = posOf(s); if (!p || !state[s.gid].on) return ''; return row(esc(recOf(s).name), lookFromPos(S, observer, p)); }).join('')
+    }</tbody></table><p class="note">${t('belowNote')}</p>`;
+  }
+  // ดาวเทียมที่อยู่สูงที่สุดจากจุดนี้ (จากทุกระบบที่เปิดอยู่)
+  const cand = [];
+  const cosMax = Math.cos(80 * Math.PI / 180);
+  const ov = toVec(observer.lat, observer.lon, 0).normalize();
+  for (const g of Object.values(state)) {
+    if (!g.on || !g.records) continue;
+    for (let i = 0; i < g.pos.length; i++) {
+      const p = g.pos[i]; if (!p) continue;
+      // คัดกรองเร็ว: ข้ามดวงที่อยู่ไกลเกินกว่าจะอยู่เหนือขอบฟ้า
+      if (toVec(p.lat, p.lon, 0).dot(ov) < cosMax && p.alt < 20000) continue;
+      const l = lookFromPos(S, observer, p);
+      if (l.el >= minEl) cand.push({ gid: g.id, i, l });
+    }
+  }
+  cand.sort((a, b) => b.l.el - a.l.el);
+  topList = cand.slice(0, 10);
+  html += `<p class="panel-title" style="margin:12px 0 0">${t('topSats', minEl)}</p>`;
+  html += topList.length
+    ? `<table class="num">${head}<tbody>${topList.map((c, k) =>
+        row(`<button class="linkish" data-top="${k}"><span class="sw" style="display:inline-block;background:${state[c.gid].color}"></span> ${esc(state[c.gid].records[c.i].name)}</button>`, c.l)).join('')}</tbody></table>`
+    : `<p class="note">${t('noneUp')}</p>`;
+  live.innerHTML = html;
+}
+$('obs').addEventListener('click', e => {
+  const b = e.target.closest('[data-top]'); if (!b) return;
+  const c = topList[b.dataset.top]; if (c) addSel(c.gid, c.i);
+});
+$('obs-btn').addEventListener('click', () => {
+  const box = $('obs'); box.hidden = !box.hidden;
+  $('obs-btn').setAttribute('aria-expanded', String(!box.hidden));
+  renderObs();
+});
 
 // ---------------- เมนู / คำอธิบายสี ----------------
 function renderGroups() {
@@ -681,7 +928,7 @@ $('groups').addEventListener('change', e => {
   g.on = e.target.checked;
   if (g.points) g.points.visible = g.on;
   if (g.on) { if (g.records) computeGroup(g, simTime()); else loadGroup(g); }
-  if (!g.on && selected?.gid === g.id) clearSelection();
+  if (!g.on) sels.filter(s => s.gid === g.id).map(s => s.key).forEach(removeSel);
   renderGroups();
 });
 $('groups-btn').addEventListener('click', () => {
@@ -703,15 +950,15 @@ $('search').addEventListener('input', e => {
     }
   }
   list.innerHTML = found.length
-    ? found.map((f, k) => { const g = state[f.gid]; return `<li><button data-k="${k}"><span class="sw" style="background:${g.color}"></span>${g.records[f.i].name}<span class="sub">${gName(g)}</span></button></li>`; }).join('')
+    ? found.map((f, k) => { const g = state[f.gid]; return `<li><button data-k="${k}"><span class="sw" style="background:${g.color}"></span>${esc(g.records[f.i].name)}<span class="sub">${gName(g)}</span></button></li>`; }).join('')
     : `<li class="note" style="padding:8px">${t('notFound')}</li>`;
   list.classList.add('open');
 });
 $('results').addEventListener('click', e => {
   const b = e.target.closest('button[data-k]'); if (!b) return;
   const f = found[b.dataset.k], g = state[f.gid];
-  if (!g.on) { g.on = true; renderGroups(); }
-  select(f, true);
+  if (!g.on) { g.on = true; if (g.points) g.points.visible = true; renderGroups(); }
+  addSel(f.gid, f.i);
   $('results').classList.remove('open'); $('search').value = ''; $('search').blur();
 });
 document.addEventListener('click', e => {
@@ -723,8 +970,7 @@ document.addEventListener('click', e => {
 function renderClock() {
   const d = simTime();
   $('clock').textContent = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  $('date').textContent = d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
-    + ' · UTC ' + d.toISOString().slice(11, 19);
+  $('date').textContent = d.toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) + ' · UTC ' + d.toISOString().slice(11, 19);
   const sp = SPEEDS[speedIdx];
   $('speed').textContent = paused ? t('paused') : (sp === 1 ? t('live') : `×${sp}`);
   $('play-icon').innerHTML = paused ? '<path d="M4 2l10 6-10 6z" fill="currentColor"/>' : '<path d="M4 2h3v12H4zM9 2h3v12H9z" fill="currentColor"/>';
@@ -736,31 +982,43 @@ $('reset').onclick = () => { simMs = Date.now(); speedIdx = 4; paused = false; u
 const setStatus = s => { $('status').textContent = s; };
 
 // ---------------- Claude dialog ----------------
-$('mcp-url').textContent = new URL('mcp', location.href).href;
+const mcpUrl = () => new URL('mcp', location.href).href;
+$('mcp-url').textContent = mcpUrl();
 $('claude-btn').onclick = $('claude-btn2').onclick = () => $('claude-dlg').showModal();
 $('dlg-close').onclick = () => $('claude-dlg').close();
 $('copy').onclick = async () => {
-  try { await navigator.clipboard.writeText(new URL('mcp', location.href).href); $('copy').textContent = t('copied'); }
+  try { await navigator.clipboard.writeText(mcpUrl()); $('copy').textContent = t('copied'); }
   catch { $('copy').textContent = t('copyFail'); }
 };
 
 // ---------------- loop ----------------
 let lastFrame = performance.now(), lastUpdate = 0;
 const camDir = new THREE.Vector3();
+function placeLabels() {
+  const W = window.innerWidth, H = window.innerHeight;
+  for (const s of sels) {
+    if (!s.ring.visible) { s.label.style.display = 'none'; continue; }
+    const p = s.ring.position, sc = screenOf(p, W, H);
+    const show = sc.z < 1 && visibleFromCamera(p.x, p.y, p.z) && sc.x > -50 && sc.x < W + 50 && sc.y > -50 && sc.y < H + 50;
+    s.label.style.display = show ? 'block' : 'none';
+    if (show) s.label.style.left = sc.x + 'px', s.label.style.top = sc.y + 'px';
+  }
+}
 function frame(now) {
   const dt = now - lastFrame; lastFrame = now;
   if (!paused) simMs += dt * SPEEDS[speedIdx];
   const interval = (!paused && SPEEDS[speedIdx] !== 1) ? 200 : 1000;
   if (now - lastUpdate > interval) { lastUpdate = now; updateAll(); }
-  if (following && selected && ring.visible) {
-    // หมุนกล้องตามดาวเทียมที่เลือก (คงระยะซูมเดิม)
+  const f = focusSel();
+  if (following && f && f.ring.visible) {
     const dist = camera.position.length();
-    camDir.copy(ring.position).normalize().multiplyScalar(dist);
+    camDir.copy(f.ring.position).normalize().multiplyScalar(dist);
     camera.position.lerp(camDir, 1 - Math.exp(-dt / 180));
     camera.position.setLength(dist);
   }
   controls.update();
   renderer.render(scene, camera);
+  placeLabels();
   requestAnimationFrame(frame);
 }
 
