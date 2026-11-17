@@ -208,7 +208,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GROUPS, unpackRow, makeRecord, positionAt, motionAt, groundTrack, predictPasses, compassTh, compassEn } from './orbit-core.js';
+import { GROUPS, packOMM, unpackRow, makeRecord, positionAt, motionAt, groundTrack, predictPasses, compassTh, compassEn } from './orbit-core.js';
 
 const S = window.satellite;
 const $ = id => document.getElementById(id);
@@ -435,14 +435,34 @@ function resize() {
 window.addEventListener('resize', resize); resize();
 
 // ---------------- ข้อมูล ----------------
+// ดึงข้อมูลวงโคจร: ลองผ่านเซิร์ฟเวอร์ของเราก่อน (api/tle) ถ้าไม่มี (เช่น เปิดบน GitHub Pages
+// หรือ api ยังไม่ถูก deploy) จะดึงจาก CelesTrak โดยตรง และเก็บแคชไว้ในเบราว์เซอร์ 2 ชั่วโมง
+const CACHE_MS = 2 * 60 * 60 * 1000;
+async function fetchRows(id) {
+  try {
+    const res = await fetch(`api/tle?group=${encodeURIComponent(id)}`);
+    if (res.ok) { const body = await res.json(); if (Array.isArray(body.rows)) return body.rows; }
+  } catch {}
+  const key = `omm:${id}`;
+  try {
+    const hit = JSON.parse(localStorage.getItem(key) || 'null');
+    if (hit && Date.now() - hit.at < CACHE_MS) return hit.rows;
+  } catch {}
+  const res = await fetch(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${encodeURIComponent(id)}&FORMAT=json`);
+  if (!res.ok) throw new Error(`CelesTrak HTTP ${res.status}`);
+  const text = await res.text();
+  if (!text.trim().startsWith('[')) throw new Error(text.slice(0, 80));
+  const rows = packOMM(JSON.parse(text));
+  try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), rows })); } catch {}
+  return rows;
+}
+
 async function loadGroup(g) {
   if (g.records || g.loading) return;
   g.loading = true; renderGroups();
   try {
-    const res = await fetch(`/api/tle?group=${encodeURIComponent(g.id)}`);
-    const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    if (!res.ok) throw new Error(body.error || res.status);
-    g.records = body.rows.map(r => makeRecord(S, unpackRow(r))).filter(Boolean);
+    const rows = await fetchRows(g.id);
+    g.records = rows.map(r => makeRecord(S, unpackRow(r))).filter(Boolean);
     makePoints(g);
     computeGroup(g, simTime());
   } catch (err) {
@@ -716,11 +736,11 @@ $('reset').onclick = () => { simMs = Date.now(); speedIdx = 4; paused = false; u
 const setStatus = s => { $('status').textContent = s; };
 
 // ---------------- Claude dialog ----------------
-$('mcp-url').textContent = `${location.origin}/mcp`;
+$('mcp-url').textContent = new URL('mcp', location.href).href;
 $('claude-btn').onclick = $('claude-btn2').onclick = () => $('claude-dlg').showModal();
 $('dlg-close').onclick = () => $('claude-dlg').close();
 $('copy').onclick = async () => {
-  try { await navigator.clipboard.writeText(`${location.origin}/mcp`); $('copy').textContent = t('copied'); }
+  try { await navigator.clipboard.writeText(new URL('mcp', location.href).href); $('copy').textContent = t('copied'); }
   catch { $('copy').textContent = t('copyFail'); }
 };
 
