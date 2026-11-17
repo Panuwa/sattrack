@@ -1,5 +1,6 @@
 // GET /api/tle?group=starlink → ข้อมูลวงโคจรของทั้งกลุ่ม (แบบย่อ) ให้หน้าเว็บคำนวณตำแหน่งเอง
-// CelesTrak ไม่เปิด CORS เบราว์เซอร์จึงดึงตรงไม่ได้ ต้องผ่านตัวนี้ และ CDN ของ Vercel จะแคชไว้ 2 ชั่วโมง
+// CDN ของ Vercel แคชไว้ 2 ชั่วโมง ทำให้ผู้ชมทุกคนใช้ข้อมูลชุดเดียวกันโดยไม่ต้องดึงจาก CelesTrak ซ้ำ
+// (ถ้า endpoint นี้ใช้ไม่ได้ หน้าเว็บจะดึงจาก CelesTrak โดยตรงแทน)
 import { getGroupOMM, GROUP_IDS } from '../lib/celestrak.js';
 import { FIELDS, packOMM } from '../public/orbit-core.js';
 

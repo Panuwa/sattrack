@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import tle from './api/tle.js';
 import mcp from './api/mcp.js';
+import ships from './api/ships.js';
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 const PORT = process.env.PORT || 3000;
@@ -12,6 +13,7 @@ const PORT = process.env.PORT || 3000;
 http.createServer(async (req, res) => {
   const path = new URL(req.url, 'http://local').pathname;
   if (path === '/api/tle') return tle(req, res);
+  if (path === '/api/ships') return ships(req, res);
   if (path === '/mcp' || path === '/api/mcp') return mcp(req, res);
   const file = normalize(join('public', path === '/' ? 'index.html' : path));
   if (!file.startsWith('public')) { res.statusCode = 403; return res.end(); }

@@ -1,5 +1,6 @@
 // POST /mcp — MCP server แบบ Streamable HTTP (stateless) ให้ Claude เชื่อมต่อเป็น custom connector
 import { GROUPS, getGroupRecords, getByNorad, searchByName, satellite } from '../lib/celestrak.js';
+import { hasKey, normBox, shipsInBoxes, findShip, publicVessel, shipCategory, NAV_STATUS } from '../lib/aisstream.js';
 import { fmtLat, fmtLon, motionAt, groundTrack, predictPasses, compassTh, compassEn, positionAt, lookFromPos, coverage } from '../public/orbit-core.js';
 
 const SERVER = { name: 'sattrack', version: '1.0.0' };
@@ -7,7 +8,7 @@ const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const INSTRUCTIONS = 'Satellite tracker using CelesTrak orbital data (OMM/TLE) and SGP4 propagation. ' +
   'Positions are computed, not observed; accuracy is a few km for recent element sets. ' +
   'Use list_constellations to see group ids, get_positions for where a whole system is, ' +
-  'get_satellite / get_ground_track for one object, predict_passes for when it flies over a place, get_look_angles for azimuth/elevation from a ground point.';
+  'get_satellite / get_ground_track for one object, predict_passes for when it flies over a place, get_look_angles for azimuth/elevation from a ground point. Ships (live AIS): get_ships_in_area and find_ship.';
 
 const timeProp = { type: 'string', description: 'ISO 8601 time, e.g. 2026-11-16T12:00:00Z. Defaults to now.' };
 const tzProp = { type: 'string', description: 'Optional IANA timezone for local times in the output, e.g. Asia/Bangkok.' };
@@ -105,6 +106,30 @@ const TOOLS = [
     },
     annotations: { readOnlyHint: true },
   },
+  {
+    name: 'get_ships_in_area',
+    description: 'Live ships (AIS from aisstream.io) around a point: name, MMSI, type, speed, course, status, destination, distance and bearing from the point. Listens to the live stream for a few seconds, so ships that transmit rarely (e.g. at anchor) may be missing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        latitude: { type: 'number' },
+        longitude: { type: 'number' },
+        radius_km: { type: 'number', description: 'Search radius, 1-1000 km. Default 50.' },
+        seconds: { type: 'integer', description: 'How long to listen, 3-20 s. Default 10.' },
+        ship_type: { type: 'string', enum: ['cargo', 'tanker', 'passenger', 'fishing', 'tug', 'highspeed', 'pleasure', 'military', 'special', 'other'], description: 'Optional filter by ship category.' },
+        name_contains: { type: 'string', description: 'Optional filter on ship name.' },
+        limit: { type: 'integer', description: 'Max ships (1-200). Default 50.' },
+      },
+      required: ['latitude', 'longitude'],
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'find_ship',
+    description: 'Find one ship anywhere in the world by its 9-digit MMSI and return its live AIS position and details. Waits up to 25 seconds for the ship to transmit.',
+    inputSchema: { type: 'object', properties: { mmsi: { type: 'string', description: '9-digit MMSI, e.g. "567000123".' } }, required: ['mmsi'] },
+    annotations: { readOnlyHint: true },
+  },
 ];
 
 // ---------- helpers ----------
@@ -157,6 +182,29 @@ async function requireSat(norad) {
   const r = await getByNorad(norad);
   if (!r) throw new Error(`No orbital data found for NORAD ${norad}. It may have decayed or the id is wrong.`);
   return r;
+}
+
+
+function shipRow(v, distKm, lat0, lon0) {
+  const p = publicVessel(v);
+  const row = {
+    name: p.name, mmsi: p.mmsi, imo: p.imo, callsign: p.callsign, category: shipCategory(p.type), ais_type: p.type,
+    latitude: r3(p.lat), longitude: r3(p.lon), position_text: `${fmtLat(p.lat)}, ${fmtLon(p.lon)}`,
+    speed_knots: p.sog, course_deg: p.cog, heading_deg: p.hdg,
+    status: p.nav != null ? NAV_STATUS[p.nav] : null, destination: p.dest, eta_utc: p.eta,
+    length_m: p.len, beam_m: p.beam, draught_m: p.draught, last_report_utc: p.t,
+  };
+  if (distKm != null) {
+    row.distance_km = r1(distKm);
+    const b = bearingDeg(lat0, lon0, p.lat, p.lon);
+    row.bearing_from_center = `${r1(b)}° ${compassEn(b)} (ทิศ${compassTh(b)})`;
+  }
+  return Object.fromEntries(Object.entries(row).filter(([, x]) => x != null));
+}
+function bearingDeg(a, b, c, d) {
+  const R = Math.PI / 180, y = Math.sin((d - b) * R) * Math.cos(c * R);
+  const x = Math.cos(a * R) * Math.sin(c * R) - Math.sin(a * R) * Math.cos(c * R) * Math.cos((d - b) * R);
+  return (Math.atan2(y, x) / R + 360) % 360;
 }
 
 // ---------- tools ----------
@@ -262,6 +310,36 @@ const handlers = {
     rows.sort((x, y) => y.elevation_deg - x.elevation_deg);
     return { observer: obs, time: fmtTime(t, a.timezone), group: a.group, min_elevation_deg: minEl,
       visible_count: rows.length, satellites: rows.slice(0, limit) };
+  },
+
+  async get_ships_in_area(a) {
+    if (!hasKey()) throw new Error('Ship tracking is not set up on this server (AISSTREAM_API_KEY missing).');
+    if (!Number.isFinite(a.latitude) || !Number.isFinite(a.longitude)) throw new Error('latitude and longitude are required numbers');
+    const R = clamp(a.radius_km, 1, 1000, 50), seconds = clamp(a.seconds, 3, 20, 10), limit = clamp(a.limit, 1, 200, 50);
+    const dLat = R / 111.2, dLon = Math.min(180, R / (111.2 * Math.max(0.05, Math.cos(a.latitude * Math.PI / 180))));
+    const boxes = normBox(a.latitude - dLat, a.longitude - dLon, a.latitude + dLat, a.longitude + dLon);
+    const out = await shipsInBoxes(boxes, seconds);
+    const needle = a.name_contains ? String(a.name_contains).toUpperCase() : null;
+    const rows = [];
+    for (const v of out.vessels) {
+      const d = kmBetween(a.latitude, a.longitude, v.lat, v.lon);
+      if (d > R) continue;
+      const cat = shipCategory(v.type);
+      if (a.ship_type && cat !== a.ship_type) continue;
+      if (needle && !(v.name || '').toUpperCase().includes(needle)) continue;
+      rows.push(shipRow(v, d, a.latitude, a.longitude));
+    }
+    rows.sort((x, y) => x.distance_km - y.distance_km);
+    return { center: { latitude: a.latitude, longitude: a.longitude }, radius_km: R, listened_seconds: seconds,
+      ships_found: rows.length, ships: rows.slice(0, limit), source: 'aisstream.io (live AIS)',
+      note: 'Only ships that transmitted during the listening window (or were seen in the last 30 minutes by this server) are listed.' };
+  },
+
+  async find_ship(a) {
+    if (!hasKey()) throw new Error('Ship tracking is not set up on this server (AISSTREAM_API_KEY missing).');
+    const v = await findShip(String(a.mmsi || '').trim(), 25);
+    if (!v) return { mmsi: a.mmsi, found: false, note: 'No position received in 25 seconds. The ship may be out of AIS coverage or transmits rarely (at anchor: every 3 minutes). Try again.' };
+    return { found: true, ...shipRow(v), source: 'aisstream.io (live AIS)' };
   },
 
   async predict_passes(a) {
