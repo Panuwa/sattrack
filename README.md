@@ -12,7 +12,7 @@
 ```
 public/index.html      หน้าเว็บ
 public/orbit-core.js   สูตรคำนวณวงโคจร ใช้ร่วมกันทั้งหน้าเว็บและ MCP server
-api/tle.js             GET /api/tle?group=…  ดึงข้อมูลจาก CelesTrak ให้หน้าเว็บ (CelesTrak ไม่เปิด CORS)
+api/tle.js             GET /api/tle?group=…  ดึงข้อมูลจาก CelesTrak ให้หน้าเว็บพร้อมแคช (ถ้าใช้ไม่ได้ หน้าเว็บจะดึงจาก CelesTrak เอง)
 api/mcp.js             POST /mcp  MCP server (Streamable HTTP, stateless)
 lib/celestrak.js       ดึงข้อมูลจาก CelesTrak พร้อมแคช 2 ชั่วโมง
 dev-server.js          เซิร์ฟเวอร์สำหรับทดสอบบนเครื่องตัวเอง
@@ -69,6 +69,7 @@ curl -s localhost:3000/mcp -H "Content-Type: application/json" \
    - “ISS จะผ่านเหนือเชียงใหม่ตอนไหนบ้างใน 2 วันข้างหน้า เวลาไทย”
    - “ดาวเทียม THEOS-2 อยู่ตรงไหนตอนนี้”
    - “ขอเส้นทางของ ISS ในอีก 90 นาทีข้างหน้า”
+   - “จากพิกัด 13.75, 100.50 ตอนนี้ Starlink ดวงไหน EL สูงสุด ขอ AZ/EL ด้วย”
 
 ถ้าใช้ Claude แบบ Team/Enterprise อาจต้องให้ผู้ดูแลองค์กรเป็นคนเพิ่ม connector
 
@@ -81,6 +82,7 @@ curl -s localhost:3000/mcp -H "Content-Type: application/json" \
 | `get_satellite` | ข้อมูลดาวเทียมดวงเดียว ค้นจากเลข NORAD หรือชื่อ |
 | `get_ground_track` | เส้นทางบนพื้นโลกในช่วงเวลาที่กำหนด |
 | `predict_passes` | เวลาที่ดาวเทียมจะผ่านเหนือตำแหน่งหนึ่ง พร้อมทิศที่ขึ้นและตก |
+| `get_look_angles` | มุม AZ / EL และระยะจากจุดบนพื้นโลกไปยังดาวเทียม (ระบุเลข NORAD ได้ถึง 30 ดวง หรือให้หาดวงที่อยู่สูงสุดของระบบนั้น) |
 
 ## ข้อควรรู้
 
