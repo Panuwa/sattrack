@@ -139,3 +139,20 @@ export function predictPasses(sat, r, obs, start, hours = 24, minEl = 10, maxPas
     };
   });
 }
+
+// มุม AZ/EL จากตำแหน่งที่คำนวณไว้แล้ว (เร็วกว่า lookAt เพราะไม่ต้อง propagate ใหม่)
+export function lookFromPos(sat, obs, p) {
+  const ecf = sat.geodeticToEcf({ latitude: p.lat * D2R, longitude: p.lon * D2R, height: p.alt });
+  const la = sat.ecfToLookAngles({ latitude: obs.lat * D2R, longitude: obs.lon * D2R, height: obs.heightKm || 0 }, ecf);
+  return { az: (la.azimuth * R2D + 360) % 360, el: la.elevation * R2D, rangeKm: la.rangeSat };
+}
+
+// พื้นที่ครอบคลุม (footprint): มุมที่ศูนย์กลางโลก (องศา) และรัศมีบนพื้นโลก (กม.)
+// ที่ผู้ใช้บนพื้นเห็นดาวเทียมสูงกว่ามุมเงยต่ำสุด minElDeg
+export const EARTH_R = 6371;
+export function coverage(altKm, minElDeg) {
+  const e = minElDeg * D2R;
+  const lam = Math.acos((EARTH_R / (EARTH_R + altKm)) * Math.cos(e)) - e;
+  const l = Math.max(0, lam);
+  return { angleDeg: l * R2D, radiusKm: l * EARTH_R };
+}
