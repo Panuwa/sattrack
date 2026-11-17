@@ -1,13 +1,13 @@
 // POST /mcp — MCP server แบบ Streamable HTTP (stateless) ให้ Claude เชื่อมต่อเป็น custom connector
 import { GROUPS, getGroupRecords, getByNorad, searchByName, satellite } from '../lib/celestrak.js';
-import { motionAt, groundTrack, predictPasses, compassTh, compassEn } from '../public/orbit-core.js';
+import { motionAt, groundTrack, predictPasses, compassTh, compassEn, positionAt, lookFromPos, coverage } from '../public/orbit-core.js';
 
 const SERVER = { name: 'sattrack', version: '1.0.0' };
 const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const INSTRUCTIONS = 'Satellite tracker using CelesTrak orbital data (OMM/TLE) and SGP4 propagation. ' +
   'Positions are computed, not observed; accuracy is a few km for recent element sets. ' +
   'Use list_constellations to see group ids, get_positions for where a whole system is, ' +
-  'get_satellite / get_ground_track for one object, predict_passes for when it flies over a place.';
+  'get_satellite / get_ground_track for one object, predict_passes for when it flies over a place, get_look_angles for azimuth/elevation from a ground point.';
 
 const timeProp = { type: 'string', description: 'ISO 8601 time, e.g. 2026-11-16T12:00:00Z. Defaults to now.' };
 const tzProp = { type: 'string', description: 'Optional IANA timezone for local times in the output, e.g. Asia/Bangkok.' };
@@ -83,6 +83,25 @@ const TOOLS = [
         timezone: tzProp,
       },
       required: ['norad_id', 'latitude', 'longitude'],
+    },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'get_look_angles',
+    description: 'Azimuth (AZ) and elevation (EL) angles and range from a ground location to satellites: either specific NORAD ids, or the highest satellites of one constellation currently above a minimum elevation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        latitude: { type: 'number' },
+        longitude: { type: 'number' },
+        norad_ids: { type: 'array', items: { type: 'integer' }, description: 'Up to 30 NORAD ids.' },
+        group: { type: 'string', enum: GROUPS.map(g => g.id), description: 'Or: a constellation id to list the satellites highest in the sky.' },
+        min_elevation: { type: 'number', description: 'For group mode: minimum elevation in degrees. Default 25.' },
+        limit: { type: 'integer', description: 'For group mode: max satellites (1-100). Default 20.' },
+        time: timeProp,
+        timezone: tzProp,
+      },
+      required: ['latitude', 'longitude'],
     },
     annotations: { readOnlyHint: true },
   },
@@ -196,6 +215,7 @@ const handlers = {
       orbit: {
         period_min: r1(r.periodMin),
         inclination_deg: r1(r.rec.inclo * 180 / Math.PI),
+        coverage_radius_km_at_25deg_elevation: Math.round(coverage(m.alt, 25).radiusKm),
         element_set_epoch: r.epoch,
       },
     };
@@ -211,6 +231,35 @@ const handlers = {
       ...fmtTime(p.time, a.timezone), latitude: r3(p.lat), longitude: r3(p.lon), altitude_km: r1(p.alt),
     }));
     return { name: r.name, norad_id: r.norad, period_min: r1(r.periodMin), points: pts };
+  },
+
+  async get_look_angles(a) {
+    if (!Number.isFinite(a.latitude) || !Number.isFinite(a.longitude)) throw new Error('latitude and longitude are required numbers');
+    const t = parseTime(a.time), obs = { lat: a.latitude, lon: a.longitude };
+    const fmt = (r, p) => {
+      const l = lookFromPos(satellite, obs, p);
+      return { name: r.name, norad_id: r.norad, azimuth_deg: r1(l.az), azimuth: `${compassEn(l.az)} (ทิศ${compassTh(l.az)})`,
+        elevation_deg: r1(l.el), above_horizon: l.el > 0, range_km: Math.round(l.rangeKm), altitude_km: r1(p.alt) };
+    };
+    if (Array.isArray(a.norad_ids) && a.norad_ids.length) {
+      const ids = a.norad_ids.slice(0, 30), out = [];
+      for (const id of ids) {
+        const r = await getByNorad(id);
+        const p = r && positionAt(satellite, r, t);
+        out.push(p ? fmt(r, p) : { norad_id: id, error: 'no orbital data' });
+      }
+      return { observer: obs, time: fmtTime(t, a.timezone), satellites: out };
+    }
+    if (!a.group) throw new Error('Give norad_ids or group.');
+    const minEl = clamp(a.min_elevation, -90, 90, 25), limit = clamp(a.limit, 1, 100, 20);
+    const rows = [];
+    for (const r of await getGroupRecords(a.group)) {
+      const p = positionAt(satellite, r, t); if (!p) continue;
+      const row = fmt(r, p); if (row.elevation_deg >= minEl) rows.push(row);
+    }
+    rows.sort((x, y) => y.elevation_deg - x.elevation_deg);
+    return { observer: obs, time: fmtTime(t, a.timezone), group: a.group, min_elevation_deg: minEl,
+      visible_count: rows.length, satellites: rows.slice(0, limit) };
   },
 
   async predict_passes(a) {
