@@ -31,6 +31,8 @@
   html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
   #globe { position: fixed; inset: 0; }
   #globe canvas { display: block; touch-action: none; }
+  #globe canvas.map2d { position: absolute; inset: 0; display: none; cursor: grab; }
+  #globe canvas.map2d.dragging { cursor: grabbing; }
   .num { font-variant-numeric: tabular-nums; }
   button, input, select { font: inherit; color: inherit; }
   button { cursor: pointer; }
@@ -185,6 +187,7 @@
 <header>
   <div class="brand">🛰️ <span data-i18n="brand"></span></div>
   <button class="nav-btn" id="groups-btn" aria-expanded="false" aria-controls="drawer" data-i18n="systems"></button>
+  <button class="nav-btn" id="view-btn"></button>
   <button class="nav-btn" id="obs-btn" aria-expanded="false" data-i18n="observer"></button>
   <button class="nav-btn" id="claude-btn" data-i18n="useClaude"></button>
   <div class="search-wrap">
@@ -261,7 +264,7 @@ const MAX_SEL = 30;
 // ---------------- ภาษา / i18n ----------------
 const I18N = {
   th: {
-    brand: 'ติดตามดาวเทียม', systems: 'ระบบดาวเทียม', legend: 'กำลังแสดง', useClaude: 'ใช้กับ Claude', observer: 'AZ / EL',
+    brand: 'ติดตามดาวเทียม', systems: 'ระบบดาวเทียม', legend: 'กำลังแสดง', useClaude: 'ใช้กับ Claude', observer: 'AZ / EL', to2d: 'แผนที่ 2D', to3d: 'ลูกโลก 3D',
     searchPh: 'ค้นหาชื่อ หรือเลข NORAD', slower: 'ช้าลง / ย้อนเวลา', faster: 'เร็วขึ้น', pause: 'หยุด / เล่น', now: 'กลับมาเวลาปัจจุบัน',
     total: n => `รวม ${n} ดวง`, none: 'เปิดระบบดาวเทียมจากเมนู “ระบบดาวเทียม”', loading: 'กำลังโหลด…',
     loadFail: (g, e) => `โหลด ${g} ไม่สำเร็จ: ${e}`, notFound: 'ไม่พบในระบบที่เปิดอยู่ ลองเปิดระบบเพิ่มในเมนู “ระบบดาวเทียม”',
@@ -289,7 +292,7 @@ const I18N = {
     noWebgl: 'เบราว์เซอร์นี้แสดงลูกโลก 3 มิติไม่ได้ (ไม่รองรับ WebGL)',
   },
   en: {
-    brand: 'Satellite Tracker', systems: 'Constellations', legend: 'Showing', useClaude: 'Use with Claude', observer: 'AZ / EL',
+    brand: 'Satellite Tracker', systems: 'Constellations', legend: 'Showing', useClaude: 'Use with Claude', observer: 'AZ / EL', to2d: '2D map', to3d: '3D globe',
     searchPh: 'Search name or NORAD ID', slower: 'Slower / rewind', faster: 'Faster', pause: 'Pause / play', now: 'Back to now',
     total: n => `${n} satellites`, none: 'Turn on a constellation from the “Constellations” menu', loading: 'Loading…',
     loadFail: (g, e) => `Could not load ${g}: ${e}`, notFound: 'Not found in the constellations shown. Turn on more in “Constellations”.',
@@ -336,6 +339,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', t(el.dataset.i18nTitle)); });
   document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
   renderGroups(); renderSelector(); renderInfo(); renderObs(); renderClock();
+  if (typeof renderViewBtn === 'function') renderViewBtn();
 }
 document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => {
   lang = b.dataset.lang;
@@ -592,6 +596,26 @@ function capGeometry(angDeg) {
   return [capGeo, edgeGeo];
 }
 
+// ขอบเขตพื้นที่ครอบคลุมเป็นรูปหลายเหลี่ยม lon/lat (สำหรับแผนที่ 2D)
+function destPoint(lat, lon, brg, ang) {
+  const D = Math.PI / 180, p1 = lat * D, l1 = lon * D, b = brg * D, a = ang * D;
+  const p2 = Math.asin(Math.sin(p1) * Math.cos(a) + Math.cos(p1) * Math.sin(a) * Math.cos(b));
+  const l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(a) * Math.cos(p1), Math.cos(a) - Math.sin(p1) * Math.sin(p2));
+  return [l2 / D, p2 / D];
+}
+function footprintPoly(lat, lon, ang) {
+  const u = []; let prev = null, off = 0;
+  for (let b = 0; b <= 360; b += 3) {
+    const [l, la] = destPoint(lat, lon, b, ang);
+    if (prev !== null) { const d = l - prev; if (d > 180) off -= 360; else if (d < -180) off += 360; }
+    u.push([l + off, la]); prev = l;
+  }
+  // พื้นที่ครอบคลุมขั้วโลก: ปิดรูปผ่านขั้วโลก
+  const first = u[0], last = u[u.length - 1];
+  if (Math.abs(last[0] - first[0]) > 180) { const pole = lat > 0 ? 90 : -90; u.push([last[0], pole], [first[0], pole]); }
+  return u;
+}
+
 function updateSel(s, force = false) {
   const p = posOf(s), r = recOf(s), on = state[s.gid].on && !!p;
   s.ring.visible = s.cov.visible = s.orbit.visible = on;
@@ -607,8 +631,10 @@ function updateSel(s, force = false) {
     s.cap.material.opacity = Math.min(0.24, Math.max(0.05, 0.24 * 15 / Math.max(ang, 1)));
     s.cap.geometry.dispose(); s.edge.geometry.dispose();
     s.cap.geometry = capGeo; s.edge.geometry = edgeGeo;
-    s.covAlt = p.alt; s.covEl = minEl;
+    s.covAlt = p.alt; s.covEl = minEl; s.ang = ang;
   }
+  s.p = p;
+  s.foot = footprintPoly(p.lat, p.lon, s.ang);
   s.cov.quaternion.setFromUnitVectors(Y, v.clone().normalize());
   // วงโคจร: คำนวณใหม่เมื่อเวลาเลื่อนไปมากพอ
   if (force || Math.abs(simMs - s.orbitAt) > Math.max(30000, r.periodMin * 60000 / 40)) {
@@ -619,6 +645,7 @@ function updateSel(s, force = false) {
     s.orbit.geometry.dispose();
     s.orbit.geometry = new THREE.BufferGeometry();
     s.orbit.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    s.track = pts;
     s.orbitAt = simMs;
   }
   const short = r.name.replace(/^STARLINK-/, '').replace(/^ONEWEB-/, '');
@@ -653,6 +680,7 @@ function updateAll() {
   renderInfoLive();
   if (observer && performance.now() - lastObsRender > 900) { lastObsRender = performance.now(); renderObsLive(); }
   renderClock();
+  if (typeof dirty2d !== 'undefined') dirty2d = true;
 }
 
 // ---------------- คลิก / ชี้ ----------------
@@ -727,6 +755,7 @@ function hover(e) {
 
 // ---------------- แผงรายการที่เลือก ----------------
 function renderSelector() {
+  if (typeof dirty2d !== 'undefined') dirty2d = true;
   $('selector').classList.toggle('open', sels.length > 0);
   $('sel-title').textContent = t('selTitle', sels.length);
   $('sel-clear').textContent = t('clearAll');
@@ -823,6 +852,7 @@ function findPasses() {
 
 // ---------------- จุดสังเกต AZ / EL ----------------
 function setObserver(lat, lon) {
+  if (typeof dirty2d !== 'undefined') dirty2d = true;
   observer = { lat, lon };
   obsPin.position.copy(toVec(lat, lon, 0)); obsPin.visible = true;
   passesHtml = null;
@@ -830,6 +860,7 @@ function setObserver(lat, lon) {
   renderObs(); renderInfo(); updateLos();
 }
 function clearObserver() {
+  if (typeof dirty2d !== 'undefined') dirty2d = true;
   observer = null; obsPin.visible = false; updateLos(); renderObs(); renderInfo();
 }
 function renderObs() {
@@ -857,6 +888,7 @@ function renderObs() {
     setObserver(lat, lon);
     following = false; renderInfo();
     camera.position.copy(toVec(lat, lon, 0).multiplyScalar(camera.position.length()));
+    mv.lon = lon; mv.lat = lat; clampView();
   };
   $('obs-me').onclick = () => navigator.geolocation.getCurrentPosition(
     p => setObserver(p.coords.latitude, p.coords.longitude),
@@ -991,6 +1023,212 @@ $('copy').onclick = async () => {
   catch { $('copy').textContent = t('copyFail'); }
 };
 
+// ---------------- แผนที่ 2 มิติ ----------------
+let view = '3d';
+try { if (localStorage.getItem('view') === '2d') view = '2d'; } catch {}
+const mapCanvas = document.createElement('canvas');
+mapCanvas.className = 'map2d';
+container.appendChild(mapCanvas);
+const mctx = mapCanvas.getContext('2d');
+const mv = { lon: 100, lat: 10, s: 4 };   // จุดกึ่งกลางแผนที่ และ s = พิกเซลต่อองศา
+let hits2d = [];
+const vsize = () => ({ W: window.innerWidth, H: window.innerHeight });
+const minScale = () => { const { W, H } = vsize(); return Math.min(W / 360, H / 180); };
+let dirty2d = true;
+function clampView() {
+  dirty2d = true;
+  const { H } = vsize();
+  mv.s = Math.min(Math.max(mv.s, minScale()), 300);
+  const lim = Math.max(0, 90 - H / 2 / mv.s);
+  mv.lat = Math.max(-lim, Math.min(lim, mv.lat));
+  mv.lon = ((mv.lon + 540) % 360 + 360) % 360 - 180;
+}
+function resizeMap() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), { W, H } = vsize();
+  mapCanvas.width = W * dpr; mapCanvas.height = H * dpr;
+  mapCanvas.style.width = W + 'px'; mapCanvas.style.height = H + 'px';
+  mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  clampView();
+}
+window.addEventListener('resize', resizeMap);
+mv.s = Math.max(minScale(), window.innerWidth / 360); resizeMap();
+
+const nearShift = lon => 360 * Math.round((mv.lon - lon) / 360);
+function unwrapTrack(pts) {
+  const out = []; let prev = null, off = 0;
+  for (const q of pts) { if (prev !== null) { const d = q.lon - prev; if (d > 180) off -= 360; else if (d < -180) off += 360; } out.push([q.lon + off, q.lat]); prev = q.lon; }
+  return out;
+}
+function draw2d() {
+  const { W, H } = vsize(), sc = mv.s;
+  const X = lon => W / 2 + (lon - mv.lon) * sc, Yp = lat => H / 2 - (lat - mv.lat) * sc;
+  mctx.fillStyle = '#05080F'; mctx.fillRect(0, 0, W, H);
+  const left = mv.lon - W / 2 / sc, right = mv.lon + W / 2 / sc;
+  // วาดเฉพาะส่วนของแผนที่ที่อยู่ในจอ (เร็วกว่าวาดทั้งภาพ)
+  const top = Math.min(90, mv.lat + H / 2 / sc), bot = Math.max(-90, mv.lat - H / 2 / sc);
+  for (let k = Math.floor((left + 180) / 360); k <= Math.floor((right + 180) / 360); k++) {
+    const w0 = -180 + k * 360, a = Math.max(left, w0), b = Math.min(right, w0 + 360);
+    if (b <= a || top <= bot) continue;
+    const sx = (a - w0) / 360 * 4096, sw = (b - a) / 360 * 4096, sy = (90 - top) / 180 * 2048, sh = (top - bot) / 180 * 2048;
+    mctx.drawImage(texCanvas, sx, sy, sw, sh, X(a), Yp(top), (b - a) * sc, (top - bot) * sc);
+  }
+  const poly = (pts, sh) => { mctx.beginPath(); pts.forEach(([l, la], i) => { const x = X(l + sh), y = Yp(la); i ? mctx.lineTo(x, y) : mctx.moveTo(x, y); }); };
+  // พื้นที่ครอบคลุม + วงโคจร (ground track) ของดวงที่เลือก
+  for (const s of sels) {
+    if (!s.p || !state[s.gid].on) continue;
+    const base = nearShift(s.p.lon);
+    if (s.foot) for (const d of [-360, 0, 360]) {
+      poly(s.foot, base + d); mctx.closePath();
+      mctx.fillStyle = `rgba(77,163,255,${Math.min(0.24, Math.max(0.05, 0.24 * 15 / Math.max(s.ang || 1, 1)))})`; mctx.fill();
+      mctx.strokeStyle = 'rgba(140,196,255,.8)'; mctx.lineWidth = 1; mctx.stroke();
+    }
+    if (s.track) {
+      const u = unwrapTrack(s.track);
+      mctx.strokeStyle = new THREE.Color(state[s.gid].color).lerp(new THREE.Color('#ffffff'), .35).getStyle();
+      mctx.lineWidth = s.key === focusKey ? 1.8 : 1.2;
+      for (const d of [-360, 0, 360]) { poly(u, nearShift(u[0][0]) + d); mctx.stroke(); }
+    }
+  }
+  // จุดดาวเทียม
+  hits2d = [];
+  for (const g of Object.values(state)) {
+    if (!g.on || !g.records) continue;
+    mctx.fillStyle = g.color;
+    const r = Math.max(1.1, g.size * 0.85), round = r >= 2.2;
+    for (let i = 0; i < g.pos.length; i++) {
+      const p = g.pos[i]; if (!p) continue;
+      const y = Yp(p.lat); if (y < -5 || y > H + 5) continue;
+      const lw = p.lon + nearShift(p.lon);
+      for (const d of [-360, 0, 360]) {
+        const x = X(lw + d); if (x < -5 || x > W + 5) continue;
+        if (round) { mctx.beginPath(); mctx.arc(x, y, r, 0, 6.2832); mctx.fill(); } else mctx.fillRect(x - r, y - r, r * 2, r * 2);
+        hits2d.push(x, y, g.id, i);
+      }
+    }
+  }
+  // วงแหวน + ป้ายชื่อ
+  mctx.font = '12px "IBM Plex Sans Thai", system-ui, sans-serif'; mctx.textAlign = 'center';
+  for (const s of sels) {
+    if (!s.p || !state[s.gid].on) continue;
+    const y = Yp(s.p.lat), lw = s.p.lon + nearShift(s.p.lon);
+    for (const d of [-360, 0, 360]) {
+      const x = X(lw + d); if (x < -60 || x > W + 60) continue;
+      mctx.strokeStyle = s.key === focusKey ? '#ffffff' : new THREE.Color(state[s.gid].color).lerp(new THREE.Color('#ffffff'), .35).getStyle();
+      mctx.lineWidth = 2; mctx.beginPath(); mctx.arc(x, y, s.key === focusKey ? 9 : 7, 0, 6.2832); mctx.stroke();
+      const name = recOf(s).name.replace(/^STARLINK-/, '').replace(/^ONEWEB-/, '');
+      mctx.lineWidth = 3; mctx.strokeStyle = 'rgba(0,0,0,.85)'; mctx.fillStyle = '#fff';
+      mctx.strokeText(name, x, y + 22); mctx.fillText(name, x, y + 22);
+      mctx.font = '10px "IBM Plex Sans Thai", system-ui, sans-serif'; mctx.fillStyle = '#B9C6DA';
+      const alt = `${Math.round(s.p.alt)} ${t('km')}`; mctx.strokeText(alt, x, y + 34); mctx.fillText(alt, x, y + 34);
+      mctx.font = '12px "IBM Plex Sans Thai", system-ui, sans-serif';
+    }
+  }
+  // จุดสังเกต
+  if (observer) {
+    const y = Yp(observer.lat), lw = observer.lon + nearShift(observer.lon);
+    for (const d of [-360, 0, 360]) {
+      const x = X(lw + d); if (x < -10 || x > W + 10) continue;
+      mctx.fillStyle = '#FFD43B'; mctx.strokeStyle = '#000'; mctx.lineWidth = 1.5;
+      mctx.beginPath(); mctx.arc(x, y, 5, 0, 6.2832); mctx.fill(); mctx.stroke();
+    }
+  }
+}
+function pick2d(cx, cy, maxPx) {
+  let best = null, bd = maxPx * maxPx;
+  for (let k = 0; k < hits2d.length; k += 4) {
+    const d = (hits2d[k] - cx) ** 2 + (hits2d[k + 1] - cy) ** 2;
+    if (d < bd) { bd = d; best = { gid: hits2d[k + 2], i: hits2d[k + 3] }; }
+  }
+  return best;
+}
+function lonLatAt(cx, cy) {
+  const { W, H } = vsize();
+  const lat = mv.lat - (cy - H / 2) / mv.s, lon = mv.lon + (cx - W / 2) / mv.s;
+  if (lat < -90 || lat > 90) return null;
+  return { lat, lon: ((lon + 540) % 360 + 360) % 360 - 180 };
+}
+function zoomAt(cx, cy, factor) {
+  const { W, H } = vsize();
+  const lon0 = mv.lon + (cx - W / 2) / mv.s, lat0 = mv.lat - (cy - H / 2) / mv.s;
+  mv.s *= factor; clampView();
+  mv.lon = lon0 - (cx - W / 2) / mv.s; mv.lat = lat0 + (cy - H / 2) / mv.s; clampView();
+}
+// ลาก / ซูม / คลิก บนแผนที่
+const ptrs = new Map(); let mdown = null, pinch = null;
+mapCanvas.addEventListener('pointerdown', e => {
+  mapCanvas.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ptrs.size === 1) mdown = { x: e.clientX, y: e.clientY, moved: false, type: e.pointerType };
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); if (mdown) mdown.moved = true; }
+});
+mapCanvas.addEventListener('pointermove', e => {
+  const prev = ptrs.get(e.pointerId);
+  if (!prev) { if (e.pointerType === 'mouse') hover2d(e); return; }
+  const cur = { x: e.clientX, y: e.clientY };
+  ptrs.set(e.pointerId, cur);
+  if (ptrs.size === 2 && pinch) {
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinch); pinch = d; return;
+  }
+  if (mdown && Math.hypot(cur.x - mdown.x, cur.y - mdown.y) > 6 && !mdown.moved) {
+    mdown.moved = true; mapCanvas.classList.add('dragging');
+    if (following) { following = false; renderInfo(); }
+  }
+  if (mdown && mdown.moved) { mv.lon -= (cur.x - prev.x) / mv.s; mv.lat += (cur.y - prev.y) / mv.s; clampView(); }
+});
+function endPtr(e) {
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (ptrs.size === 0) {
+    if (mdown && !mdown.moved && e.type === 'pointerup') {
+      const rect = mapCanvas.getBoundingClientRect(), cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+      const hit = pick2d(cx, cy, mdown.type === 'touch' ? 22 : 12);
+      if (hit) addSel(hit.gid, hit.i);
+      else { const ll = lonLatAt(cx, cy); if (ll) setObserver(ll.lat, ll.lon); }
+    }
+    mdown = null; mapCanvas.classList.remove('dragging');
+  }
+}
+mapCanvas.addEventListener('pointerup', endPtr);
+mapCanvas.addEventListener('pointercancel', endPtr);
+mapCanvas.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
+mapCanvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = mapCanvas.getBoundingClientRect();
+  zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
+let hover2dRaf = 0;
+function hover2d(e) {
+  if (hover2dRaf) return;
+  hover2dRaf = requestAnimationFrame(() => {
+    hover2dRaf = 0;
+    const rect = mapCanvas.getBoundingClientRect(), hit = pick2d(e.clientX - rect.left, e.clientY - rect.top, 10), tip = $('tip');
+    mapCanvas.style.cursor = hit ? 'pointer' : '';
+    if (!hit) { tip.style.display = 'none'; return; }
+    tip.textContent = state[hit.gid].records[hit.i].name;
+    tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.style.display = 'block';
+  });
+}
+function follow2d(dt) {
+  const f = focusSel();
+  if (!following || !f || !f.p) return;
+  const k = 1 - Math.exp(-dt / 180), tl = f.p.lon + nearShift(f.p.lon);
+  mv.lon += (tl - mv.lon) * k; mv.lat += (f.p.lat - mv.lat) * k; clampView();
+}
+function renderViewBtn() { $('view-btn').textContent = view === '3d' ? t('to2d') : t('to3d'); }
+function setView(v) {
+  if (v === '2d' && view === '3d') { const ll = fromVec(camera.position); mv.lon = ll.lon; mv.lat = ll.lat; clampView(); }
+  if (v === '3d' && view === '2d') camera.position.copy(toVec(mv.lat, mv.lon, 0).multiplyScalar(camera.position.length()));
+  view = v;
+  renderer.domElement.style.display = v === '3d' ? 'block' : 'none';
+  mapCanvas.style.display = v === '2d' ? 'block' : 'none';
+  $('labels').style.display = v === '3d' ? 'block' : 'none';
+  $('tip').style.display = 'none';
+  try { localStorage.setItem('view', v); } catch {}
+  renderViewBtn();
+}
+$('view-btn').addEventListener('click', () => setView(view === '3d' ? '2d' : '3d'));
+
 // ---------------- loop ----------------
 let lastFrame = performance.now(), lastUpdate = 0;
 const camDir = new THREE.Vector3();
@@ -1009,6 +1247,7 @@ function frame(now) {
   if (!paused) simMs += dt * SPEEDS[speedIdx];
   const interval = (!paused && SPEEDS[speedIdx] !== 1) ? 200 : 1000;
   if (now - lastUpdate > interval) { lastUpdate = now; updateAll(); }
+  if (view === '2d') { follow2d(dt); if (dirty2d) { dirty2d = false; draw2d(); } requestAnimationFrame(frame); return; }
   const f = focusSel();
   if (following && f && f.ring.visible) {
     const dist = camera.position.length();
@@ -1022,6 +1261,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+setView(view);
 applyLang();
 GROUPS.filter(g => g.on).forEach(g => loadGroup(state[g.id]));
 setInterval(() => setStatus(t('updated', new Date().toLocaleTimeString(locale()))), 5000);
