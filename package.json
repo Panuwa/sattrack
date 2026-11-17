@@ -1,0 +1,14 @@
+{
+  "name": "sattrack",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Satellite tracker website + MCP connector for Claude",
+  "scripts": {
+    "dev": "node dev-server.js"
+  },
+  "engines": { "node": "22.x" },
+  "dependencies": {
+    "satellite.js": "6.0.2"
+  }
+}

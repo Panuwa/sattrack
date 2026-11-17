@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ติดตามดาวเทียม</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛰️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --paper: #E6ECEA;
+    --panel: #F7F9F8;
+    --ink: #1A2B3C;
+    --ink-2: #51606B;
+    --rule: #CDD6D5;
+    --focus: #1C7ED6;
+    --track: #1A2B3C;
+    font-family: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif;
+    color: var(--ink);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--paper); }
+  body { display: grid; grid-template-columns: 340px 1fr; height: 100dvh; }
+  #map { background: #DCE5E6; height: 100%; }
+  .leaflet-container { font-family: inherit; }
+
+  aside {
+    background: var(--panel); border-right: 1px solid var(--rule);
+    overflow-y: auto; padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 22px; z-index: 2;
+  }
+  h1 { font-size: 1.25rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: .95rem; font-weight: 600; margin: 0 0 8px; }
+  p { margin: 0; }
+  .muted { color: var(--ink-2); font-size: .84rem; line-height: 1.5; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* นาฬิกาเวลาจำลอง — จุดเด่นของหน้า */
+  .clock { font-size: 2.6rem; font-weight: 500; line-height: 1; letter-spacing: -0.02em; }
+  .clock-date { margin-top: 6px; }
+  .offset { font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--ink); margin: 12px 0 4px; }
+  .scale { display: flex; justify-content: space-between; font-size: .75rem; color: var(--ink-2); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  button, select {
+    font: inherit; font-size: .86rem; color: var(--ink); background: #fff;
+    border: 1px solid var(--rule); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--ink-2); }
+  button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .groups { list-style: none; margin: 0; padding: 0; }
+  .groups li label {
+    display: grid; grid-template-columns: 16px 10px 1fr auto; align-items: center; gap: 10px;
+    padding: 6px 0; cursor: pointer; font-size: .92rem;
+  }
+  .groups input { margin: 0; accent-color: var(--ink); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .count { color: var(--ink-2); font-size: .8rem; }
+
+  input[type=search] {
+    width: 100%; font: inherit; font-size: .92rem; padding: 8px 10px;
+    border: 1px solid var(--rule); border-radius: 6px; background: #fff; color: var(--ink);
+  }
+  .results { list-style: none; margin: 6px 0 0; padding: 0; }
+  .results button { width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; background: none; padding: 7px 2px; }
+
+  .sat { border-top: 2px solid var(--ink); padding-top: 14px; }
+  .sat-name { font-size: 1.15rem; font-weight: 600; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 12px 0 0; font-size: .9rem; }
+  dt { color: var(--ink-2); }
+  dd { margin: 0; }
+  .heading-big { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .arrow { width: 38px; height: 38px; border: 1px solid var(--rule); border-radius: 50%; display: grid; place-items: center; background: #fff; }
+  .arrow svg { transition: transform .4s; }
+  @media (prefers-reduced-motion: reduce) { .arrow svg { transition: none; } }
+  table { width: 100%; border-collapse: collapse; font-size: .84rem; margin-top: 10px; }
+  th, td { text-align: left; padding: 5px 4px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 500; color: var(--ink-2); }
+
+  .connector code { display: block; background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: 8px; font-size: .8rem; word-break: break-all; margin: 8px 0; }
+
+  #tip {
+    position: fixed; pointer-events: none; background: var(--ink); color: #fff; font-size: .78rem;
+    padding: 3px 8px; border-radius: 4px; transform: translate(10px, -130%); display: none; z-index: 1000; white-space: nowrap;
+  }
+  #status { position: absolute; right: 12px; bottom: 26px; z-index: 500; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 10px; font-size: .8rem; }
+
+  @media (max-width: 760px) {
+    body { grid-template-columns: 1fr; grid-template-rows: 52dvh 1fr; }
+    aside { order: 2; border-right: 0; border-top: 1px solid var(--rule); }
+    .clock { font-size: 2rem; }
+  }
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>ติดตามดาวเทียม</h1>
+    <p class="muted">ตำแหน่งคำนวณจากข้อมูลวงโคจรของ CelesTrak ด้วยแบบจำลอง SGP4 คลิกจุดบนแผนที่เพื่อดูรายละเอียด</p>
+  </header>
+
+  <section aria-label="เวลา">
+    <div class="clock num" id="clock">--:--:--</div>
+    <p class="muted clock-date"><span id="date"></span> · <span class="offset" id="offset">ตอนนี้</span></p>
+    <input type="range" id="slider" min="-720" max="720" step="5" value="0" aria-label="เลื่อนเวลา (นาที)">
+    <div class="scale"><span>12 ชม. ก่อน</span><span>ตอนนี้</span><span>12 ชม. ข้างหน้า</span></div>
+    <div class="row">
+      <button id="now">กลับมาเวลาปัจจุบัน</button>
+      <select id="speed" aria-label="ความเร็วเวลา">
+        <option value="1">เวลาจริง</option>
+        <option value="60">เร็ว 60 เท่า</option>
+        <option value="600">เร็ว 600 เท่า</option>
+      </select>
+    </div>
+  </section>
+
+  <section>
+    <h2>ระบบดาวเทียม</h2>
+    <ul class="groups" id="groups"></ul>
+    <p class="muted" id="total"></p>
+  </section>
+
+  <section>
+    <h2><label for="search">ค้นหาดาวเทียม</label></h2>
+    <input type="search" id="search" placeholder="ชื่อ หรือเลข NORAD เช่น ISS, 25544" autocomplete="off">
+    <ul class="results" id="results"></ul>
+  </section>
+
+  <section class="sat" id="sat" hidden></section>
+
+  <section class="connector">
+    <h2>ใช้กับ Claude</h2>
+    <p class="muted">เพิ่ม URL นี้ใน Claude ที่ Settings → Connectors → Add custom connector แล้วถาม Claude ได้เลย เช่น “ตอนนี้ Starlink ดวงไหนอยู่เหนือกรุงเทพฯ บ้าง”</p>
+    <code id="mcp-url"></code>
+    <button id="copy">คัดลอก URL</button>
+  </section>
+</aside>
+
+<main id="map"><div id="status">กำลังโหลด…</div></main>
+<div id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@6.0.2/dist/satellite.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script type="module">
+import { GROUPS, unpackRow, makeRecord, positionAt, motionAt, groundTrack, predictPasses, compassTh } from './orbit-core.js';
+const S = window.satellite;
+const $ = id => document.getElementById(id);
+
+// ---------- state ----------
+const state = Object.fromEntries(GROUPS.map(g => [g.id, { ...g, records: null, pos: [], loading: false }]));
+let offsetMin = 0, speed = 1, lastTick = Date.now();
+let selected = null;           // { gid, i }
+let observer = null;           // { lat, lon }
+let hits = [];                 // จุดบนจอสำหรับคลิก/hover: [x, y, gid, i]
+const simTime = () => new Date(Date.now() + offsetMin * 60000);
+
+// ---------- map ----------
+const map = L.map('map', { minZoom: 2, maxZoom: 7, maxBounds: [[-88, -300], [88, 300]], worldCopyJump: false }).setView([15, 100], 3);
+// แผนที่โลกวาดเองจาก Natural Earth (world-atlas) — ไม่ต้องใช้ API key ของผู้ให้บริการแผนที่
+map.attributionControl.addAttribution('แผนที่ Natural Earth · ข้อมูลวงโคจร CelesTrak');
+const base = L.canvas({ padding: 0.5 });
+const shiftGeo = (geo, dx) => JSON.parse(JSON.stringify(geo), (k, v) =>
+  Array.isArray(v) && typeof v[0] === 'number' && v.length === 2 ? [v[0] + dx, v[1]] : v);
+fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json').then(r => r.json()).then(topo => {
+  const land = topojson.feature(topo, topo.objects.land);
+  const borders = topojson.mesh(topo, topo.objects.countries, (a, b) => a !== b);
+  for (const dx of [-360, 0, 360]) {
+    L.geoJSON(shiftGeo(land, dx), { renderer: base, interactive: false,
+      style: { color: '#AEBBBA', weight: 0.8, fillColor: '#FBFCFB', fillOpacity: 1 } }).addTo(map);
+    L.geoJSON(shiftGeo(borders, dx), { renderer: base, interactive: false,
+      style: { color: '#CBD4D3', weight: 0.6 } }).addTo(map);
+  }
+}).catch(() => setStatus('โหลดแผนที่โลกไม่สำเร็จ'));
+// เส้นละติจูด/ลองจิจูดทุก 30°
+for (let lat = -60; lat <= 60; lat += 30)
+  L.polyline([[lat, -540], [lat, 540]], { renderer: base, color: lat === 0 ? '#9FB0B4' : '#C9D4D6', weight: 0.7, interactive: false }).addTo(map);
+for (let lon = -540; lon <= 540; lon += 30)
+  L.polyline([[-85, lon], [85, lon]], { renderer: base, color: '#C9D4D6', weight: 0.7, interactive: false }).addTo(map);
+
+const canvas = document.createElement('canvas');
+Object.assign(canvas.style, { position: 'absolute', inset: '0', zIndex: 450, pointerEvents: 'none' });
+map.getContainer().appendChild(canvas);
+const ctx = canvas.getContext('2d');
+const track = L.polyline([], { color: '#1A2B3C', weight: 1.5, dashArray: '4 5', interactive: false }).addTo(map);
+const trackPast = L.polyline([], { color: '#1A2B3C', weight: 1.5, opacity: .35, interactive: false }).addTo(map);
+let obsMarker = null;
+
+function resize() {
+  const { x, y } = map.getSize(), dpr = window.devicePixelRatio || 1;
+  canvas.width = x * dpr; canvas.height = y * dpr;
+  canvas.style.width = x + 'px'; canvas.style.height = y + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+const wrapNear = (lon, c) => lon + 360 * Math.round((c - lon) / 360);
+
+function draw() {
+  const { x: W, y: H } = map.getSize();
+  ctx.clearRect(0, 0, W, H);
+  hits = [];
+  const c = map.getCenter().lng;
+  for (const g of Object.values(state)) {
+    if (!g.on || !g.records) continue;
+    ctx.fillStyle = g.color;
+    const s = g.size;
+    for (let i = 0; i < g.pos.length; i++) {
+      const p = g.pos[i];
+      if (!p) continue;
+      const pt = map.latLngToContainerPoint([p.lat, wrapNear(p.lon, c)]);
+      if (pt.x < -5 || pt.y < -5 || pt.x > W + 5 || pt.y > H + 5) continue;
+      if (s < 2) ctx.fillRect(pt.x - s, pt.y - s, s * 2, s * 2);
+      else { ctx.beginPath(); ctx.arc(pt.x, pt.y, s, 0, 6.2832); ctx.fill(); }
+      hits.push(pt.x, pt.y, g.id, i);
+    }
+  }
+  if (selected) {
+    const p = state[selected.gid].pos[selected.i];
+    if (p) {
+      const pt = map.latLngToContainerPoint([p.lat, wrapNear(p.lon, c)]);
+      ctx.strokeStyle = '#1A2B3C'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, 9, 0, 6.2832); ctx.stroke();
+    }
+  }
+}
+map.on('move zoom resize', draw);
+map.on('resize', resize);
+
+function nearest(cp, maxPx = 9) {
+  let best = null, bd = maxPx * maxPx;
+  for (let k = 0; k < hits.length; k += 4) {
+    const dx = hits[k] - cp.x, dy = hits[k + 1] - cp.y, d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = { gid: hits[k + 2], i: hits[k + 3] }; }
+  }
+  return best;
+}
+map.on('click', e => { const n = nearest(e.containerPoint); if (n) select(n); });
+let hoverRaf = 0;
+map.on('mousemove', e => {
+  if (hoverRaf) return;
+  hoverRaf = requestAnimationFrame(() => {
+    hoverRaf = 0;
+    const n = nearest(e.containerPoint), tip = $('tip');
+    map.getContainer().style.cursor = n ? 'pointer' : '';
+    if (!n) { tip.style.display = 'none'; return; }
+    tip.textContent = state[n.gid].records[n.i].name;
+    tip.style.left = e.originalEvent.clientX + 'px'; tip.style.top = e.originalEvent.clientY + 'px';
+    tip.style.display = 'block';
+  });
+});
+map.on('mouseout', () => { $('tip').style.display = 'none'; });
+
+// ---------- data ----------
+async function loadGroup(g) {
+  if (g.records || g.loading) return;
+  g.loading = true; renderGroups();
+  try {
+    const res = await fetch(`/api/tle?group=${encodeURIComponent(g.id)}`);
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || res.status);
+    g.records = body.rows.map(r => makeRecord(S, unpackRow(r))).filter(Boolean);
+    computeGroup(g, simTime());
+  } catch (err) {
+    g.on = false;
+    setStatus(`โหลด ${g.name} ไม่สำเร็จ: ${err.message}`);
+  } finally { g.loading = false; renderGroups(); draw(); }
+}
+function computeGroup(g, t) { g.pos = g.records.map(r => positionAt(S, r, t)); }
+
+// ---------- UI ----------
+function renderGroups() {
+  $('groups').innerHTML = GROUPS.map(({ id }) => {
+    const g = state[id];
+    const n = g.loading ? 'กำลังโหลด…' : g.records ? g.records.length.toLocaleString('th-TH') : '';
+    return `<li><label><input type="checkbox" data-id="${id}" ${g.on ? 'checked' : ''}>
+      <span class="dot" style="background:${g.color}"></span><span>${g.name}</span><span class="count num">${n}</span></label></li>`;
+  }).join('');
+  const shown = Object.values(state).filter(g => g.on && g.records).reduce((a, g) => a + g.records.length, 0);
+  $('total').textContent = shown ? `แสดงอยู่ ${shown.toLocaleString('th-TH')} ดวง` : 'เลือกระบบดาวเทียมที่ต้องการดู';
+}
+$('groups').addEventListener('change', e => {
+  const g = state[e.target.dataset.id]; if (!g) return;
+  g.on = e.target.checked;
+  if (g.on) loadGroup(g);
+  if (!g.on && selected?.gid === g.id) clearSelection();
+  renderGroups(); draw();
+});
+
+const setStatus = t => { $('status').textContent = t; };
+const fmtTime = d => d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const fmtDate = d => d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const fmtShort = d => d.toLocaleString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+function renderClock() {
+  const t = simTime();
+  $('clock').textContent = fmtTime(t);
+  $('date').textContent = fmtDate(t);
+  const m = Math.round(offsetMin);
+  if (Math.abs(m) < 1) $('offset').textContent = 'ตอนนี้';
+  else {
+    const h = Math.floor(Math.abs(m) / 60), mm = Math.abs(m) % 60;
+    const txt = [h ? `${h} ชม.` : '', mm ? `${mm} นาที` : ''].filter(Boolean).join(' ');
+    $('offset').textContent = m > 0 ? `อีก ${txt} ข้างหน้า` : `${txt} ที่แล้ว`;
+  }
+  $('slider').value = Math.max(-720, Math.min(720, m));
+}
+$('slider').addEventListener('input', e => { offsetMin = Number(e.target.value); tick(true); });
+$('now').addEventListener('click', () => { offsetMin = 0; speed = 1; $('speed').value = '1'; tick(true); });
+$('speed').addEventListener('change', e => { speed = Number(e.target.value); });
+
+// ---------- selection ----------
+function select(sel) { selected = sel; observerPasses = null; renderSat(); drawTrack(); draw(); }
+function clearSelection() { selected = null; $('sat').hidden = true; track.setLatLngs([]); trackPast.setLatLngs([]); draw(); }
+let observerPasses = null;
+
+function unwrap(pts) {
+  const out = []; let prev = null;
+  for (const p of pts) {
+    let lon = p.lon;
+    if (prev !== null) lon = wrapNear(lon, prev);
+    out.push([p.lat, lon]); prev = lon;
+  }
+  return out;
+}
+function drawTrack() {
+  if (!selected) return;
+  const r = state[selected.gid].records[selected.i], t = simTime();
+  const per = Math.min(r.periodMin, 1440), step = Math.max(per / 150, 0.5);
+  const past = groundTrack(S, r, new Date(t.getTime() - per * 0.4 * 60000), per * 0.4, step);
+  const fut = groundTrack(S, r, t, per, step);
+  const all = unwrap([...past, ...fut]);
+  // ขยับให้เส้นอยู่ใกล้กึ่งกลางแผนที่
+  const shift = all.length ? wrapNear(all[past.length]?.[1] ?? 0, map.getCenter().lng) - (all[past.length]?.[1] ?? 0) : 0;
+  const moved = all.map(([a, b]) => [a, b + shift]);
+  trackPast.setLatLngs(moved.slice(0, past.length + 1));
+  track.setLatLngs(moved.slice(past.length));
+}
+
+function renderSat() {
+  const box = $('sat');
+  if (!selected) { box.hidden = true; return; }
+  const g = state[selected.gid], r = g.records[selected.i];
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="sat-name">${r.name}</div>
+    <p class="muted">${g.name} · NORAD ${r.norad}${r.intl ? ' · ' + r.intl : ''}</p>
+    <div id="sat-live"></div>
+    <div class="row">
+      <button class="primary" id="passes-btn">ดูเวลาที่ผ่านเหนือตำแหน่งฉัน</button>
+      <button id="clear-btn">ปิด</button>
+    </div>
+    <div id="passes">${observerPasses ?? ''}</div>`;
+  $('clear-btn').onclick = clearSelection;
+  $('passes-btn').onclick = findPasses;
+  renderSatLive();
+}
+
+// ส่วนที่เปลี่ยนทุกวินาที (แยกออกมาเพื่อไม่ให้ปุ่มเสีย focus)
+function renderSatLive() {
+  const live = $('sat-live');
+  if (!selected || !live) return;
+  const r = state[selected.gid].records[selected.i], m = motionAt(S, r, simTime());
+  if (!m) { live.innerHTML = '<p class="muted">คำนวณตำแหน่งไม่ได้ ข้อมูลวงโคจรอาจเก่าเกินไป</p>'; return; }
+  const ageDays = (simTime() - new Date(r.epoch + 'Z')) / 86400000;
+  live.innerHTML = `
+    <div class="heading-big">
+      <div class="arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18" style="transform:rotate(${m.heading}deg)"><path d="M9 1 L15 16 L9 12 L3 16 Z" fill="#1A2B3C"/></svg></div>
+      <div><strong>มุ่งหน้าทิศ${m.headingTh}</strong><div class="muted num">${m.heading.toFixed(0)}° · ${m.northbound ? 'กำลังขึ้นเหนือ' : 'กำลังลงใต้'}</div></div>
+    </div>
+    <dl class="num">
+      <dt>ละติจูด</dt><dd>${m.lat.toFixed(3)}°</dd>
+      <dt>ลองจิจูด</dt><dd>${m.lon.toFixed(3)}°</dd>
+      <dt>ความสูง</dt><dd>${m.alt.toLocaleString('th-TH', { maximumFractionDigits: 0 })} กม.</dd>
+      <dt>ความเร็ว</dt><dd>${m.speed.toFixed(2)} กม./วินาที</dd>
+      <dt>โคจรรอบละ</dt><dd>${r.periodMin < 200 ? r.periodMin.toFixed(1) + ' นาที' : (r.periodMin / 60).toFixed(1) + ' ชม.'}</dd>
+      <dt>ข้อมูลวงโคจร</dt><dd>อายุ ${ageDays.toFixed(1)} วัน</dd>
+    </dl>`;
+}
+
+function findPasses() {
+  const out = $('passes');
+  const run = () => {
+    const r = state[selected.gid].records[selected.i];
+    if (r.periodMin > 1300 && r.periodMin < 1580) {
+      observerPasses = '<p class="muted">ดาวเทียมดวงนี้อยู่วงโคจรค้างฟ้า จะอยู่ที่ตำแหน่งเดิมบนท้องฟ้าตลอด ไม่มีการโคจรผ่าน</p>';
+    } else {
+      const ps = predictPasses(S, r, observer, simTime(), 48, 10, 8);
+      observerPasses = ps.length ? `<table class="num"><thead><tr><th>เริ่มเห็น</th><th>สูงสุด</th><th>จากทิศ → ไปทิศ</th></tr></thead><tbody>${
+        ps.map(p => `<tr><td>${fmtShort(p.rise)}</td><td>${p.maxElevation.toFixed(0)}°</td><td>${compassTh(p.riseAz)} → ${compassTh(p.setAz)}</td></tr>`).join('')
+      }</tbody></table><p class="muted" style="margin-top:6px">48 ชม. ข้างหน้า มุมเงยอย่างน้อย 10° (ยังไม่ได้คิดว่ามองเห็นด้วยตาเปล่าหรือไม่)</p>`
+        : '<p class="muted">ไม่ผ่านเหนือตำแหน่งของคุณที่มุมเงย 10° ขึ้นไปใน 48 ชม. ข้างหน้า</p>';
+    }
+    out.innerHTML = observerPasses;
+  };
+  if (observer) return run();
+  out.innerHTML = '<p class="muted">กำลังขอตำแหน่งของคุณ…</p>';
+  navigator.geolocation.getCurrentPosition(pos => {
+    observer = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    obsMarker = L.circleMarker([observer.lat, observer.lon], { radius: 6, color: '#1A2B3C', weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(map);
+    run();
+  }, () => { out.innerHTML = '<p class="muted">ไม่ได้รับตำแหน่ง อนุญาตให้เบราว์เซอร์เข้าถึงตำแหน่งแล้วกดอีกครั้ง</p>'; },
+  { timeout: 10000 });
+}
+
+// ---------- search ----------
+$('search').addEventListener('input', e => {
+  const q = e.target.value.trim().toUpperCase(), list = $('results');
+  if (q.length < 2) { list.innerHTML = ''; return; }
+  const found = [];
+  for (const g of Object.values(state)) {
+    if (!g.records) continue;
+    g.records.forEach((r, i) => {
+      if (found.length < 8 && (r.name.toUpperCase().includes(q) || String(r.norad) === q)) found.push({ gid: g.id, i, r });
+    });
+  }
+  list.innerHTML = found.length
+    ? found.map((f, k) => `<li><button data-k="${k}">${f.r.name} <span class="muted">· ${state[f.gid].name}</span></button></li>`).join('')
+    : '<li class="muted" style="padding-top:6px">ไม่พบในระบบที่เปิดอยู่ ลองเปิดระบบดาวเทียมเพิ่มด้านบน</li>';
+  list.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const f = found[b.dataset.k];
+    const p = state[f.gid].pos[f.i];
+    if (!state[f.gid].on) { state[f.gid].on = true; renderGroups(); }
+    select({ gid: f.gid, i: f.i });
+    if (p) map.panTo([p.lat, p.lon]);
+    list.innerHTML = ''; e.target.value = '';
+  });
+});
+
+// ---------- loop ----------
+let trackCounter = 0;
+function tick(force = false) {
+  const now = Date.now(), dt = now - lastTick; lastTick = now;
+  if (!force && speed > 1) offsetMin += (dt * (speed - 1)) / 60000;
+  const t = simTime();
+  for (const g of Object.values(state)) if (g.on && g.records) computeGroup(g, t);
+  renderClock();
+  if (selected) { renderSatLive(); if (force || speed > 1 || ++trackCounter % 30 === 0) drawTrack(); }
+  draw();
+  setStatus(`อัปเดต ${fmtTime(new Date())}`);
+}
+
+$('mcp-url').textContent = `${location.origin}/mcp`;
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(`${location.origin}/mcp`); $('copy').textContent = 'คัดลอกแล้ว'; }
+  catch { $('copy').textContent = 'คัดลอกไม่ได้ ให้เลือกข้อความเอง'; }
+};
+
+renderGroups(); resize();
+GROUPS.filter(g => g.on).forEach(g => loadGroup(state[g.id]));
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
