@@ -1,6 +1,7 @@
 // POST /mcp — MCP server แบบ Streamable HTTP (stateless) ให้ Claude เชื่อมต่อเป็น custom connector
 import { GROUPS, getGroupRecords, getByNorad, searchByName, satellite } from '../lib/celestrak.js';
 import { hasKey, normBox, shipsInBoxes, findShip, publicVessel, shipCategory, NAV_STATUS } from '../lib/aisstream.js';
+import { hasCollector, collectorGet } from '../lib/collector.js';
 import { fmtLat, fmtLon, motionAt, groundTrack, predictPasses, compassTh, compassEn, positionAt, lookFromPos, coverage } from '../public/orbit-core.js';
 
 const SERVER = { name: 'sattrack', version: '1.0.0' };
@@ -8,7 +9,7 @@ const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 const INSTRUCTIONS = 'Satellite tracker using CelesTrak orbital data (OMM/TLE) and SGP4 propagation. ' +
   'Positions are computed, not observed; accuracy is a few km for recent element sets. ' +
   'Use list_constellations to see group ids, get_positions for where a whole system is, ' +
-  'get_satellite / get_ground_track for one object, predict_passes for when it flies over a place, get_look_angles for azimuth/elevation from a ground point. Ships (live AIS): get_ships_in_area and find_ship.';
+  'get_satellite / get_ground_track for one object, predict_passes for when it flies over a place, get_look_angles for azimuth/elevation from a ground point. Ships (AIS): get_ships_in_area, find_ship, get_ship_track (history).';
 
 const timeProp = { type: 'string', description: 'ISO 8601 time, e.g. 2026-11-16T12:00:00Z. Defaults to now.' };
 const tzProp = { type: 'string', description: 'Optional IANA timezone for local times in the output, e.g. Asia/Bangkok.' };
@@ -128,6 +129,21 @@ const TOOLS = [
     name: 'find_ship',
     description: 'Find one ship anywhere in the world by its 9-digit MMSI and return its live AIS position and details. Waits up to 25 seconds for the ship to transmit.',
     inputSchema: { type: 'object', properties: { mmsi: { type: 'string', description: '9-digit MMSI, e.g. "567000123".' } }, required: ['mmsi'] },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'get_ship_track',
+    description: 'Recorded track history (route) of a ship by MMSI from the AIS collector database: timed positions with speed and course, total distance, and a summary. Needs the collector server.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mmsi: { type: 'string', description: '9-digit MMSI.' },
+        hours: { type: 'number', description: 'How far back, 1-720 hours. Default 24.' },
+        max_points: { type: 'integer', description: 'Downsample to at most this many points (10-500). Default 100.' },
+        timezone: tzProp,
+      },
+      required: ['mmsi'],
+    },
     annotations: { readOnlyHint: true },
   },
 ];
@@ -313,12 +329,19 @@ const handlers = {
   },
 
   async get_ships_in_area(a) {
-    if (!hasKey()) throw new Error('Ship tracking is not set up on this server (AISSTREAM_API_KEY missing).');
+    if (!hasKey() && !hasCollector()) throw new Error('Ship tracking is not set up on this server (AISSTREAM_API_KEY or collector missing).');
     if (!Number.isFinite(a.latitude) || !Number.isFinite(a.longitude)) throw new Error('latitude and longitude are required numbers');
     const R = clamp(a.radius_km, 1, 1000, 50), seconds = clamp(a.seconds, 3, 20, 10), limit = clamp(a.limit, 1, 200, 50);
     const dLat = R / 111.2, dLon = Math.min(180, R / (111.2 * Math.max(0.05, Math.cos(a.latitude * Math.PI / 180))));
     const boxes = normBox(a.latitude - dLat, a.longitude - dLon, a.latitude + dLat, a.longitude + dLon);
-    const out = await shipsInBoxes(boxes, seconds);
+    let out = null, source = 'aisstream.io (live AIS)';
+    if (hasCollector()) {
+      try {
+        const r = await collectorGet('/ships', { bbox: [a.latitude - dLat, a.longitude - dLon, a.latitude + dLat, a.longitude + dLon].join(','), maxAgeMin: 60, limit: 20000 });
+        if (r) { out = { vessels: r.vessels.map(v => ({ ...v, t: Date.parse(v.t) })) }; source = 'AIS collector database (positions from the last 60 minutes)'; }
+      } catch {}
+    }
+    if (!out) { if (!hasKey()) throw new Error('Collector unreachable and no AISSTREAM_API_KEY for live data.'); out = await shipsInBoxes(boxes, seconds); }
     const needle = a.name_contains ? String(a.name_contains).toUpperCase() : null;
     const rows = [];
     for (const v of out.vessels) {
@@ -330,16 +353,43 @@ const handlers = {
       rows.push(shipRow(v, d, a.latitude, a.longitude));
     }
     rows.sort((x, y) => x.distance_km - y.distance_km);
-    return { center: { latitude: a.latitude, longitude: a.longitude }, radius_km: R, listened_seconds: seconds,
-      ships_found: rows.length, ships: rows.slice(0, limit), source: 'aisstream.io (live AIS)',
+    return { center: { latitude: a.latitude, longitude: a.longitude }, radius_km: R, ...(source.startsWith('aisstream') ? { listened_seconds: seconds } : {}),
+      ships_found: rows.length, ships: rows.slice(0, limit), source,
       note: 'Only ships that transmitted during the listening window (or were seen in the last 30 minutes by this server) are listed.' };
   },
 
   async find_ship(a) {
-    if (!hasKey()) throw new Error('Ship tracking is not set up on this server (AISSTREAM_API_KEY missing).');
+    if (!hasKey() && !hasCollector()) throw new Error('Ship tracking is not set up on this server (AISSTREAM_API_KEY or collector missing).');
+    if (hasCollector()) {
+      try {
+        const r = await collectorGet('/ship', { mmsi: String(a.mmsi || '').trim() });
+        if (r?.vessel) return { found: true, ...shipRow({ ...r.vessel, t: Date.parse(r.vessel.t) }), source: 'AIS collector database' };
+      } catch {}
+      if (!hasKey()) return { mmsi: a.mmsi, found: false, note: 'Not in the collector database (outside its area, or not heard yet).' };
+    }
     const v = await findShip(String(a.mmsi || '').trim(), 25);
     if (!v) return { mmsi: a.mmsi, found: false, note: 'No position received in 25 seconds. The ship may be out of AIS coverage or transmits rarely (at anchor: every 3 minutes). Try again.' };
     return { found: true, ...shipRow(v), source: 'aisstream.io (live AIS)' };
+  },
+
+  async get_ship_track(a) {
+    if (!hasCollector()) throw new Error('Track history needs the AIS collector server (COLLECTOR_URL + COLLECTOR_TOKEN). Only live positions are available on this deployment.');
+    const mmsi = Number(String(a.mmsi || '').trim()), hours = clamp(a.hours, 1, 720, 24), maxPts = clamp(a.max_points, 10, 500, 100);
+    if (!Number.isInteger(mmsi) || mmsi <= 0) throw new Error('mmsi must be a 9-digit number');
+    const r = await collectorGet('/track', { mmsi, hours });
+    const pts = r?.points || [];
+    if (!pts.length) return { mmsi, hours, points: 0, note: 'No recorded positions for this ship in this period (it may be outside the collector area or not heard).' };
+    let km = 0, maxSog = 0;
+    for (let i = 1; i < pts.length; i++) km += kmBetween(pts[i - 1][1], pts[i - 1][2], pts[i][1], pts[i][2]);
+    for (const p of pts) if (p[3] != null && p[3] < 102) maxSog = Math.max(maxSog, p[3]);
+    const step = Math.max(1, Math.ceil(pts.length / maxPts));
+    const sample = pts.filter((_, i) => i % step === 0 || i === pts.length - 1).map(p => ({
+      ...fmtTime(new Date(p[0]), a.timezone), latitude: r3(p[1]), longitude: r3(p[2]), speed_knots: p[3], course_deg: p[4] }));
+    const spanH = (pts[pts.length - 1][0] - pts[0][0]) / 36e5;
+    return { mmsi, hours, recorded_points: pts.length, returned_points: sample.length,
+      first: fmtTime(new Date(pts[0][0]), a.timezone), last: fmtTime(new Date(pts[pts.length - 1][0]), a.timezone),
+      distance_km: r1(km), average_speed_knots: spanH > 0 ? r1(km / spanH / 1.852) : null, max_speed_knots: r1(maxSog),
+      track: sample, source: 'AIS collector database' };
   },
 
   async predict_passes(a) {

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Satellite + ship (AIS) tracker website and MCP connector for Claude",
   "scripts": {
-    "dev": "node --env-file-if-exists=.env dev-server.js"
+    "dev": "node --env-file-if-exists=.env dev-server.js",
+    "collector": "node --env-file-if-exists=.env collector/collector.mjs"
   },
   "engines": {
     "node": "22.x"

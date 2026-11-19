@@ -66,11 +66,14 @@
   .lang button[aria-pressed=true] { background: var(--accent); color: #fff; }
 
   /* เมนูระบบดาวเทียม */
-  #drawer {
+  #drawer, #vdrawer {
     position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 12px; width: 290px; max-height: calc(100dvh - 140px); overflow-y: auto;
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; z-index: 15; display: none;
   }
-  #drawer.open { display: block; }
+  #drawer.open, #vdrawer.open { display: block; }
+  .panel-title.sub { font-size: .84rem; color: var(--text-2); margin-top: 12px; }
+  .hist-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  .hist-row select { background: #0B1220; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: .85rem; }
   .panel-title { font-weight: 600; font-size: .95rem; margin: 0 0 8px; }
   .groups { list-style: none; margin: 0; padding: 0; }
   .groups label { display: grid; grid-template-columns: 16px 12px 1fr auto; gap: 9px; align-items: center; padding: 6px 2px; cursor: pointer; font-size: .9rem; }
@@ -186,13 +189,13 @@
     /* ช่องพิมพ์ขนาด 16px กันไม่ให้ iPhone ซูมหน้าจอเองตอนแตะ */
     input, select { font-size: 16px !important; }
     #legend { display: none; }
-    #drawer { left: 8px; right: 8px; width: auto; max-height: calc(100dvh - 150px); }
+    #drawer, #vdrawer { left: 8px; right: 8px; width: auto; max-height: calc(100dvh - 150px); }
     /* แผงข้อมูลเป็น bottom sheet ไม่บังจอเกินครึ่ง */
     #left { left: 0; right: 0; width: auto; top: auto; bottom: calc(54px + env(safe-area-inset-bottom)); max-height: 42dvh; gap: 6px; padding: 0 6px 6px; }
     .card { padding: 10px 12px; border-radius: 12px; }
     .card.collapsed > :not(.info-head) { display: none; }
     /* ปุ่มติดตาม/เวลาผ่าน อยู่ใต้ชื่อเลย ไม่ต้องเลื่อนหา */
-    #info:not(.collapsed) { display: flex; flex-direction: column; }
+    #info:not(.collapsed):not([hidden]) { display: flex; flex-direction: column; }
     #info .actions { order: 1; }
     #info-live { order: 2; }
     #passes { order: 3; }
@@ -241,6 +244,7 @@
 <header>
   <div class="brand">🛰️ <span data-i18n="brand"></span></div>
   <button class="nav-btn" id="groups-btn" aria-expanded="false" aria-controls="drawer" data-i18n="systems"></button>
+  <button class="nav-btn" id="vessel-btn" aria-expanded="false" aria-controls="vdrawer" data-i18n="vessels"></button>
   <button class="nav-btn" id="view-btn"></button>
   <button class="nav-btn" id="obs-btn" aria-expanded="false" data-i18n="observer"></button>
   <button class="nav-btn" id="claude-btn" data-i18n="useClaude"></button>
@@ -259,13 +263,21 @@
 <section id="drawer" aria-label="systems">
   <p class="panel-title" data-i18n="systems"></p>
   <ul class="groups" id="groups"></ul>
-  <div class="ships-box">
-    <p class="panel-title" data-i18n="shipsTitle"></p>
-    <label class="ship-toggle"><input type="checkbox" id="ships-on"><span data-i18n="shipsShow"></span><span class="count num" id="ships-count"></span></label>
-    <p class="note" id="ships-status"></p>
-    <ul class="groups" id="ship-legend"></ul>
-  </div>
   <button class="btn" id="claude-btn2" style="margin-top:10px;width:100%" data-i18n="useClaude"></button>
+</section>
+
+<section id="vdrawer" aria-label="vessels">
+  <p class="panel-title" data-i18n="shipsTitle"></p>
+  <label class="ship-toggle"><input type="checkbox" id="ships-on"><span data-i18n="shipsShow"></span><span class="count num" id="ships-count"></span></label>
+  <p class="note" id="ships-status"></p>
+  <p class="panel-title sub" data-i18n="shipTypes"></p>
+  <ul class="groups" id="ship-legend"></ul>
+  <div class="ships-box">
+    <p class="panel-title" data-i18n="histTitle"></p>
+    <p class="note" id="hist-status"></p>
+    <label class="ship-toggle"><input type="checkbox" id="rec-on" checked><span data-i18n="recLocal"></span><span></span></label>
+    <button class="btn" id="rec-clear" style="margin-top:6px" data-i18n="recClear"></button>
+  </div>
 </section>
 
 <aside id="legend">
@@ -354,6 +366,16 @@ const I18N = {
     claudeEx: 'จากนั้นถามได้เลย เช่น “ตอนนี้ Starlink ดวงไหนอยู่เหนือกรุงเทพฯ กำลังไปทางไหน”',
     copy: 'คัดลอก URL', copied: 'คัดลอกแล้ว', copyFail: 'คัดลอกไม่ได้ ให้เลือกข้อความเอง', globeFail: 'โหลดแผนที่โลกไม่สำเร็จ',
     noWebgl: 'เบราว์เซอร์นี้แสดงลูกโลก 3 มิติไม่ได้ (ไม่รองรับ WebGL)',
+    vessels: 'เรือ', shipTypes: 'ประเภทเรือ (ติ๊กเพื่อแสดง/ซ่อน)', histTitle: 'การเก็บตำแหน่งและเส้นทางย้อนหลัง',
+    recLocal: 'บันทึกเส้นทางในเบราว์เซอร์นี้ด้วย', recClear: 'ล้างเส้นทางที่บันทึกในเบราว์เซอร์',
+    histServer: n => `✅ เซิร์ฟเวอร์เก็บข้อมูลทำงานอยู่ บันทึกตำแหน่งเรือตลอด 24 ชม. แม้ไม่ได้เปิดหน้าเว็บ (ในฐานข้อมูล ${n} ลำ)`,
+    histServerDown: e => `⚠️ ติดต่อเซิร์ฟเวอร์เก็บข้อมูลไม่ได้: ${e}`,
+    histLocal: n => `ยังไม่ได้ตั้งเซิร์ฟเวอร์เก็บข้อมูล (ดู README หัวข้อ collector) ตอนนี้เก็บเส้นทางเฉพาะช่วงที่เปิดหน้าเว็บนี้ ไว้ในเบราว์เซอร์ (${n} จุด เก็บ 7 วัน)`,
+    srcCollector: n => `ข้อมูลจากเซิร์ฟเวอร์เก็บข้อมูล (${n} ลำในฐานข้อมูล)`,
+    histBtn: 'แสดงเส้นทางย้อนหลัง', histHide: 'ซ่อนเส้นทาง', histCsv: 'ดาวน์โหลด CSV', histLoading: 'กำลังโหลดเส้นทาง…',
+    histHours: h => h < 24 ? `${h} ชม.` : `${h / 24} วัน`,
+    histSummary: (n, from, km, src) => `${n} จุด · ตั้งแต่ ${from} · ระยะทางรวม ${km} กม. · ที่มา: ${src}`,
+    histNone: 'ยังไม่มีเส้นทางที่บันทึกไว้ของเรือลำนี้ในช่วงเวลาที่เลือก', srcServer: 'เซิร์ฟเวอร์', srcBrowser: 'เบราว์เซอร์นี้',
     shipsTitle: 'เรือ (AIS)', shipsShow: 'แสดงเรือในพื้นที่ที่ดูอยู่', shipsLoading: 'กำลังฟังสัญญาณเรือ… (ประมาณ 10 วินาที)',
     shipsUpdated: (n, tm) => `เรือ ${n} ลำ · อัปเดต ${tm} · อัปเดตอัตโนมัติทุก 30 วินาที`,
     shipsNoKey: 'ยังไม่ได้ตั้งค่า AISSTREAM_API_KEY บนเซิร์ฟเวอร์ (ดูวิธีใน README)',
@@ -397,6 +419,16 @@ const I18N = {
     claudeEx: 'Then just ask, for example: “Which Starlink satellites are over Bangkok right now, and which way are they moving?”',
     copy: 'Copy URL', copied: 'Copied', copyFail: 'Copy failed — select the text manually', globeFail: 'Could not load the world map',
     noWebgl: 'This browser can’t show the 3D globe (WebGL not supported).',
+    vessels: 'Vessels', shipTypes: 'Ship types (tick to show/hide)', histTitle: 'Position storage and track history',
+    recLocal: 'Also record tracks in this browser', recClear: 'Clear tracks saved in this browser',
+    histServer: n => `✅ The collector server is running and records ship positions 24/7, even when this page is closed (${n} ships in the database)`,
+    histServerDown: e => `⚠️ Cannot reach the collector server: ${e}`,
+    histLocal: n => `No collector server is set up (see README, “collector”). Tracks are recorded only while this page is open, in this browser (${n} points, kept 7 days).`,
+    srcCollector: n => `Data from the collector server (${n} ships in the database)`,
+    histBtn: 'Show track history', histHide: 'Hide track', histCsv: 'Download CSV', histLoading: 'Loading track…',
+    histHours: h => h < 24 ? `${h} h` : `${h / 24} d`,
+    histSummary: (n, from, km, src) => `${n} points · since ${from} · ${km} km travelled · source: ${src}`,
+    histNone: 'No recorded track for this ship in the selected period yet.', srcServer: 'server', srcBrowser: 'this browser',
     shipsTitle: 'Ships (AIS)', shipsShow: 'Show ships in the visible area', shipsLoading: 'Listening for ship signals… (about 10 s)',
     shipsUpdated: (n, tm) => `${n} ships · updated ${tm} · refreshes every 30 s`,
     shipsNoKey: 'AISSTREAM_API_KEY is not set on the server (see README).',
@@ -432,7 +464,7 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); el.setAttribute('aria-label', t(el.dataset.i18nTitle)); });
   document.querySelectorAll('.lang button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
   renderGroups(); renderSelector(); renderInfo(); renderObs(); renderClock();
-  renderShipLegend(); renderShipStatus(); renderShip();
+  renderShipLegend(); renderShipStatus(); renderShip(); renderHistStatus();
   if (typeof renderViewBtn === 'function') renderViewBtn();
 }
 document.querySelectorAll('.lang button').forEach(b => b.addEventListener('click', () => {
@@ -814,7 +846,7 @@ function pick(clientX, clientY, maxPx) {
       if (d < bd && visibleFromCamera(x, y, z)) { bd = d; best = { gid: g.id, i }; }
     }
   }
-  if (shipsOn) for (const v of shipList) {
+  if (shipsOn) for (const v of shipVis) {
     tmpV.set(v._x, v._y, v._z).project(camera);
     if (tmpV.z > 1) continue;
     const sx = (tmpV.x + 1) / 2 * W, sy = (1 - tmpV.y) / 2 * H, d = (sx - mx) ** 2 + (sy - my) ** 2;
@@ -1080,10 +1112,14 @@ $('groups').addEventListener('change', e => {
   if (!g.on) sels.filter(s => s.gid === g.id).map(s => s.key).forEach(removeSel);
   renderGroups();
 });
-$('groups-btn').addEventListener('click', () => {
-  const open = $('drawer').classList.toggle('open');
-  $('groups-btn').setAttribute('aria-expanded', String(open));
-});
+function toggleDrawer(id, btn) {
+  const open = $(id).classList.toggle('open');
+  $(btn).setAttribute('aria-expanded', String(open));
+  const other = id === 'drawer' ? ['vdrawer', 'vessel-btn'] : ['drawer', 'groups-btn'];
+  if (open) { $(other[0]).classList.remove('open'); $(other[1]).setAttribute('aria-expanded', 'false'); }
+}
+$('groups-btn').addEventListener('click', () => toggleDrawer('drawer', 'groups-btn'));
+$('vessel-btn').addEventListener('click', () => toggleDrawer('vdrawer', 'vessel-btn'));
 
 // ---------------- ค้นหา ----------------
 let found = [];
@@ -1126,6 +1162,7 @@ $('results').addEventListener('click', e => {
 document.addEventListener('click', e => {
   if (!e.target.closest('.search-wrap')) $('results').classList.remove('open');
   if (!e.target.closest('#drawer') && !e.target.closest('#groups-btn')) { $('drawer').classList.remove('open'); $('groups-btn').setAttribute('aria-expanded', 'false'); }
+  if (!e.target.closest('#vdrawer') && !e.target.closest('#vessel-btn')) { $('vdrawer').classList.remove('open'); $('vessel-btn').setAttribute('aria-expanded', 'false'); }
 });
 
 // ---------------- เวลา ----------------
@@ -1427,7 +1464,10 @@ function hover2d(e) {
   if (hover2dRaf) return;
   hover2dRaf = requestAnimationFrame(() => {
     hover2dRaf = 0;
-    const rect = mapCanvas.getBoundingClientRect(), hit = pick2d(e.clientX - rect.left, e.clientY - rect.top, 10), tip = $('tip');
+    const rect = mapCanvas.getBoundingClientRect(), tip = $('tip');
+    const ti = trackHitAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (ti >= 0) { tip.textContent = trackTip(ti); tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.style.display = 'block'; mapCanvas.style.cursor = ''; return; }
+    const hit = pick2d(e.clientX - rect.left, e.clientY - rect.top, 10);
     mapCanvas.style.cursor = hit ? 'pointer' : '';
     if (!hit) { tip.style.display = 'none'; return; }
     tip.textContent = hitName(hit);
@@ -1449,7 +1489,13 @@ function follow2d(dt) {
   if (Math.abs(tl - mv.lon) * mv.s < 0.5 && Math.abs(tlat - mv.lat) * mv.s < 0.5) return;
   mv.lon += (tl - mv.lon) * k; mv.lat += (tlat - mv.lat) * k; clampView();
 }
-function renderViewBtn() { const m = isMobile(); $('view-btn').textContent = view === '3d' ? t(m ? 'to2dS' : 'to2d') : t(m ? 'to3dS' : 'to3d'); }
+function renderNavLabels() {
+  const m = isMobile();
+  $('groups-btn').textContent = m ? '🛰️' : t('systems');
+  $('vessel-btn').textContent = m ? '🚢' : t('vessels');
+}
+function renderViewBtn() {
+  renderNavLabels(); const m = isMobile(); $('view-btn').textContent = view === '3d' ? t(m ? 'to2dS' : 'to2d') : t(m ? 'to3dS' : 'to3d'); }
 function setView(v) {
   if (v === '2d' && view === '3d') { const ll = fromVec(camera.position); mv.lon = ll.lon; mv.lat = ll.lat; mv.s = Math.max(mv.s, fitScale()); clampView(); }
   if (v === '3d' && view === '2d') camera.position.copy(toVec(mv.lat, mv.lon, 0).multiplyScalar(camera.position.length()));
@@ -1477,6 +1523,9 @@ const shipCat = type => {
 };
 const shipColor = v => SHIP_COLORS[shipCat(v?.type)];
 const ships = new Map();      // mmsi -> ข้อมูลเรือ (สะสมจากการโหลดแต่ละครั้ง เก็บ 30 นาที)
+let shipVis = [];   // เรือที่แสดงหลังกรองประเภท
+const hiddenCats = new Set((() => { try { return JSON.parse(localStorage.getItem('hiddenCats') || '[]'); } catch { return []; } })());
+let shipSource = '', collectorStats = null, collectorErr = null;
 let shipList = [], shipsOn = false, shipBusy = false, lastShipBox = null, shipFetchedAt = null;
 let shipStatus = { k: '', msg: '' }, shipSel = null, shipHits2d = [];
 
@@ -1491,8 +1540,9 @@ function rebuildShips() {
   const cutoff = Date.now() - 30 * 60 * 1000;
   for (const [k, v] of ships) if ((v.tms || 0) < cutoff && k !== shipSel) ships.delete(k);
   shipList = [...ships.values()].filter(v => v.lat != null);
-  const pos = new Float32Array(shipList.length * 3), col = new Float32Array(shipList.length * 3), c = new THREE.Color();
-  shipList.forEach((v, k) => {
+  shipVis = shipList.filter(v => !hiddenCats.has(shipCat(v.type)) || v.mmsi === shipSel);
+  const pos = new Float32Array(shipVis.length * 3), col = new Float32Array(shipVis.length * 3), c = new THREE.Color();
+  shipVis.forEach((v, k) => {
     toXYZ(v.lat, v.lon, 0.5, pos, k * 3);   // เหนือผิวโลกเล็กน้อยกันจมใต้ texture
     v._x = pos[k * 3]; v._y = pos[k * 3 + 1]; v._z = pos[k * 3 + 2];
     c.set(shipColor(v)); col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
@@ -1505,6 +1555,7 @@ function rebuildShips() {
   const sv = ships.get(shipSel);
   shipRing.visible = !!(shipsOn && sv);
   if (sv) shipRing.position.copy(toVec(sv.lat, sv.lon, 0.5));
+  extendTrack();
   dirty2d = true;
   renderShipLegend(); renderShip();
 }
@@ -1544,16 +1595,20 @@ async function fetchShips() {
     const body = await res.json();
     if (!res.ok) throw { code: body.code, message: body.error };
     lastShipBox = b; shipFetchedAt = new Date();
+    shipSource = body.source || ''; collectorStats = body.collector || null; collectorErr = body.collectorError || null;
     mergeShips(body.vessels);
+    recordLocal(body.vessels);
     shipStatus = { k: b.tooBig ? 'tooBig' : 'ok' };
   } catch (e) {
     shipStatus = { k: { NO_KEY: 'noKey', REJECTED: 'rejected', NO_API: 'noApi' }[e?.code] || 'err', msg: e?.message || String(e) };
   } finally { shipBusy = false; renderShipStatus(); }
 }
 // โหลดใหม่ทุก 30 วินาที และเมื่อเลื่อนแผนที่ออกนอกพื้นที่ที่โหลดไว้
-setInterval(() => { if (shipsOn) fetchShips(); }, 30000);
+// โหลดเฉพาะเมื่อแท็บนี้เปิดดูอยู่ (ประหยัดการเชื่อมต่อ AISStream ที่จำกัด 3 ช่องทาง)
+setInterval(() => { if (shipsOn && document.visibilityState === 'visible') fetchShips(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (shipsOn && document.visibilityState === 'visible') fetchShips(); });
 setInterval(() => {
-  if (!shipsOn || shipBusy || !lastShipBox) return;
+  if (!shipsOn || shipBusy || !lastShipBox || document.visibilityState !== 'visible') return;
   const b = viewBox(), L = lastShipBox;
   const dLon = Math.abs(((b.lon - L.lon + 540) % 360) - 180);
   if (Math.abs(b.lat - L.lat) > L.hLat * 0.5 || dLon > L.hLon * 0.5 || b.hLat < L.hLat * 0.35 || b.hLat > L.hLat * 1.8) fetchShips();
@@ -1565,24 +1620,31 @@ function renderShipStatus() {
   el.textContent = !shipsOn ? t('shipsNote')
     : k === 'loading' ? t('shipsLoading')
     : k === 'ok' || k === 'tooBig' ? t('shipsUpdated', shipList.length.toLocaleString(locale()), shipFetchedAt.toLocaleTimeString(locale())) + (k === 'tooBig' ? ' · ' + t('shipsTooBig') : '')
+        + (shipSource === 'collector' && collectorStats ? ' · ' + t('srcCollector', collectorStats.vessels.toLocaleString(locale())) : '')
     : k === 'noKey' ? t('shipsNoKey') : k === 'noApi' ? t('shipsNoApi') : k === 'rejected' ? t('shipsRejected')
     : k === 'err' ? t('shipsErr', shipStatus.msg) : t('shipsNote');
   $('ships-count').textContent = shipsOn && shipList.length ? shipList.length.toLocaleString(locale()) : '';
+  renderHistStatus();
 }
 function renderShipLegend() {
   const el = $('ship-legend'); if (!el) return;
-  if (!shipsOn || !shipList.length) { el.innerHTML = ''; renderGroupsShipsRow(); return; }
   const n = {}; shipList.forEach(v => { const c = shipCat(v.type); n[c] = (n[c] || 0) + 1; });
-  el.innerHTML = Object.keys(SHIP_COLORS).filter(c => n[c]).map(c =>
-    `<li><span class="sw" style="background:${SHIP_COLORS[c]};border-radius:50%"></span>${t('shipCats')[c]}<span class="count num" style="margin-left:auto">${n[c].toLocaleString(locale())}</span></li>`).join('');
+  el.innerHTML = Object.keys(SHIP_COLORS).map(c =>
+    `<li><label><input type="checkbox" data-cat="${c}" ${hiddenCats.has(c) ? '' : 'checked'}><span class="sw" style="background:${SHIP_COLORS[c]};border-radius:50%"></span><span>${t('shipCats')[c]}</span><span class="count num">${n[c] ? n[c].toLocaleString(locale()) : ''}</span></label></li>`).join('');
   renderGroupsShipsRow();
 }
+$('ship-legend').addEventListener('change', e => {
+  const c = e.target.dataset.cat; if (!c) return;
+  if (e.target.checked) hiddenCats.delete(c); else hiddenCats.add(c);
+  try { localStorage.setItem('hiddenCats', JSON.stringify([...hiddenCats])); } catch {}
+  rebuildShips();
+});
 // แถวเรือในกล่องคำอธิบายมุมขวาล่าง
 function renderGroupsShipsRow() {
   const list = $('legend-list'); if (!list) return;
   list.querySelector('.ship-row')?.remove();
   if (shipsOn && shipList.length) list.insertAdjacentHTML('beforeend',
-    `<li class="ship-row"><span class="sw" style="background:#40C057;border-radius:50%"></span>${t('shipsTitle')}<span class="count num">${shipList.length.toLocaleString(locale())}</span></li>`);
+    `<li class="ship-row"><span class="sw" style="background:#40C057;border-radius:50%"></span>${t('shipsTitle')}<span class="count num">${shipVis.length.toLocaleString(locale())}</span></li>`);
 }
 $('ships-on').addEventListener('change', e => {
   shipsOn = e.target.checked;
@@ -1593,11 +1655,13 @@ $('ships-on').addEventListener('change', e => {
 
 // ---- การ์ดข้อมูลเรือ ----
 function selectShip(mmsi) {
+  if (trackFor !== Number(mmsi)) hideTrack();
   shipSel = Number(mmsi); following = true; followTarget = 'ship';
   $('ship').hidden = false; expandCard('ship');
   rebuildShips(); renderInfo();
 }
 function closeShip() {
+  hideTrack();
   shipSel = null; $('ship').hidden = true; shipRing.visible = false;
   if (followTarget === 'ship') following = false;
   dirty2d = true;
@@ -1631,6 +1695,7 @@ function renderShip(pending) {
       <button class="btn ${tr ? 'on' : ''}" id="ship-track" aria-pressed="${tr}">${tr ? t('tracking') : t('track')}</button>
       <a class="btn" style="text-decoration:none" href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${v.mmsi}" target="_blank" rel="noopener">${t('moreInfo')}</a>
     </div>
+    ${histControls()}
     <dl class="num">
       <div class="kv"><dt>${t('navStatus')}</dt><dd>${navTxt}</dd></div>
       <div class="kv"><dt>${t('sog')}</dt><dd>${v.sog == null ? '–' : `${nf(v.sog, 1)} ${t('kn')} (${nf(v.sog * 1.852, 0)} ${t('kmh')})`}</dd></div>
@@ -1647,6 +1712,7 @@ function renderShip(pending) {
     </dl>`;
   $('ship-x').onclick = closeShip;
   $('ship-track').onclick = () => { const on = !(following && followTarget === 'ship'); following = on; followTarget = 'ship'; renderShip(); renderInfo(); };
+  wireHist();
 }
 setInterval(() => { if (shipSel && !$('ship').hidden && ships.has(shipSel)) renderShip(); }, 5000);
 
@@ -1679,7 +1745,8 @@ function drawShips2d(X, Yp, W, H) {
   shipHits2d = [];
   if (!shipsOn) return;
   const big = mv.s > 40;
-  for (const v of shipList) {
+  drawTrack2d(X, Yp, W, H);
+  for (const v of shipVis) {
     const y = Yp(v.lat); if (y < -8 || y > H + 8) continue;
     const lw = v.lon + nearShift(v.lon);
     for (const d of [-360, 0, 360]) {
@@ -1703,6 +1770,172 @@ function drawShips2d(X, Yp, W, H) {
       }
     }
   }
+}
+
+// ---------------- เก็บตำแหน่งเรือ + เส้นทางย้อนหลัง ----------------
+// 1) ถ้ามีเซิร์ฟเวอร์เก็บข้อมูล (collector) ใช้เส้นทางจากเซิร์ฟเวอร์ (บันทึกตลอด 24 ชม.)
+// 2) และบันทึกในเบราว์เซอร์นี้ด้วย (IndexedDB) ระหว่างที่เปิดหน้าเว็บ เก็บ 7 วัน
+const LOCAL_KEEP_MS = 7 * 864e5;
+let idbP = null, localCount = 0;
+let recOn = (() => { try { return localStorage.getItem('recOn') !== '0'; } catch { return true; } })();
+function idb() {
+  if (!idbP) idbP = new Promise((res, rej) => {
+    const r = indexedDB.open('sattrack', 1);
+    r.onupgradeneeded = () => { const st = r.result.createObjectStore('pts', { keyPath: ['mmsi', 't'] }); st.createIndex('t', 't'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }).catch(() => null);
+  return idbP;
+}
+(async () => {
+  const db = await idb(); if (!db) return;
+  const tx = db.transaction('pts', 'readwrite'), st = tx.objectStore('pts');
+  st.index('t').openCursor(IDBKeyRange.upperBound(Date.now() - LOCAL_KEEP_MS)).onsuccess = e => { const c = e.target.result; if (c) { c.delete(); c.continue(); } };
+  tx.oncomplete = () => { const q = db.transaction('pts').objectStore('pts').count(); q.onsuccess = () => { localCount = q.result; renderHistStatus(); }; };
+})();
+const lastRec = new Map();
+async function recordLocal(list) {
+  if (!recOn || !list?.length) return;
+  const db = await idb(); if (!db) return;
+  const rows = [];
+  for (const v of list) {
+    if (v.lat == null || !v.t) continue;
+    const tms = Date.parse(v.t), p = lastRec.get(v.mmsi);
+    if (p) {
+      const dt = (tms - p.t) / 1000; if (dt < 30) continue;
+      if (groundKmLocal(p.lat, p.lon, v.lat, v.lon) * 1000 < 30 && dt < 600) continue;
+    }
+    const row = { mmsi: v.mmsi, t: tms, lat: v.lat, lon: v.lon, sog: v.sog ?? null, cog: v.cog ?? null };
+    lastRec.set(v.mmsi, row); rows.push(row);
+  }
+  if (!rows.length) return;
+  const tx = db.transaction('pts', 'readwrite'), st = tx.objectStore('pts');
+  rows.forEach(r => st.put(r));
+  tx.oncomplete = () => { localCount += rows.length; renderHistStatus(); };
+}
+async function idbTrack(mmsi, since) {
+  const db = await idb(); if (!db) return [];
+  return new Promise(res => {
+    const q = db.transaction('pts').objectStore('pts').getAll(IDBKeyRange.bound([mmsi, since], [mmsi, Infinity]));
+    q.onsuccess = () => res(q.result.map(r => [r.t, r.lat, r.lon, r.sog, r.cog])); q.onerror = () => res([]);
+  });
+}
+function renderHistStatus() {
+  const el = $('hist-status'); if (!el) return;
+  const n = localCount.toLocaleString(locale());
+  el.textContent = shipSource === 'collector' && collectorStats ? t('histServer', collectorStats.vessels.toLocaleString(locale()))
+    : collectorErr ? t('histServerDown', collectorErr) + ' · ' + t('histLocal', n) : t('histLocal', n);
+}
+$('rec-on').checked = recOn;
+$('rec-on').addEventListener('change', e => { recOn = e.target.checked; try { localStorage.setItem('recOn', recOn ? '1' : '0'); } catch {} });
+$('rec-clear').addEventListener('click', async () => {
+  const db = await idb(); if (!db) return;
+  const tx = db.transaction('pts', 'readwrite'); tx.objectStore('pts').clear();
+  tx.oncomplete = () => { localCount = 0; lastRec.clear(); renderHistStatus(); };
+});
+
+// ---- โหลดและวาดเส้นทาง ----
+let trackOn = false, trackFor = null, trackPts = [], trackSrc = [], trackLoading = false, histHours = 24, trkHits2d = [];
+const trackLine3d = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xFFD43B, transparent: true, opacity: .9 }));
+const trackDots3d = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xFFD43B, size: 3, sizeAttenuation: false }));
+trackLine3d.frustumCulled = trackDots3d.frustumCulled = false; scene.add(trackLine3d, trackDots3d);
+function build3dTrack() {
+  const arr = new Float32Array(trackPts.length * 3);
+  trackPts.forEach((p, k) => toXYZ(p[1], p[2], 0.6, arr, k * 3));
+  for (const o of [trackLine3d, trackDots3d]) {
+    o.geometry.dispose(); o.geometry = new THREE.BufferGeometry();
+    o.geometry.setAttribute('position', new THREE.BufferAttribute(arr.slice(), 3));
+    o.visible = trackOn && trackPts.length > 0;
+  }
+}
+async function loadTrack() {
+  const mmsi = shipSel, hours = histHours, since = Date.now() - hours * 36e5;
+  trackOn = true; trackFor = mmsi; trackLoading = true; trackPts = []; build3dTrack(); renderShip();
+  let pts = [], src = [];
+  try {
+    const r = await fetch(`api/track?mmsi=${mmsi}&hours=${hours}`);
+    if ((r.headers.get('content-type') || '').includes('json')) { const b = await r.json(); if (r.ok && b.points?.length) { pts = b.points; src.push(t('srcServer')); } }
+  } catch {}
+  const local = await idbTrack(mmsi, since);
+  if (local.length) {
+    const have = new Set(pts.map(p => Math.round(p[0] / 20000)));
+    const extra = local.filter(p => !have.has(Math.round(p[0] / 20000)));
+    if (extra.length) { pts = pts.concat(extra); src.push(t('srcBrowser')); }
+  }
+  const v = ships.get(mmsi);
+  if (v && v.tms && v.tms >= since) pts.push([v.tms, v.lat, v.lon, v.sog ?? null, v.cog ?? null]);
+  pts.sort((a, b) => a[0] - b[0]);
+  pts = pts.filter((p, i) => i === 0 || p[0] - pts[i - 1][0] > 1000);
+  if (trackFor !== mmsi || !trackOn) return;
+  trackPts = pts; trackSrc = src; trackLoading = false;
+  build3dTrack(); dirty2d = true; renderShip();
+}
+function hideTrack() { trackOn = false; trackFor = null; trackPts = []; trkHits2d = []; build3dTrack(); dirty2d = true; }
+// ต่อเส้นทางด้วยตำแหน่งใหม่ระหว่างที่เปิดดูอยู่
+function extendTrack() {
+  if (!trackOn || trackLoading) return;
+  const v = ships.get(trackFor), last = trackPts[trackPts.length - 1];
+  if (v && v.tms && (!last || v.tms - last[0] > 20000)) { trackPts.push([v.tms, v.lat, v.lon, v.sog ?? null, v.cog ?? null]); build3dTrack(); }
+}
+function trackSummary() {
+  if (trackLoading) return t('histLoading');
+  if (!trackPts.length) return t('histNone');
+  let km = 0;
+  for (let i = 1; i < trackPts.length; i++) km += groundKmLocal(trackPts[i - 1][1], trackPts[i - 1][2], trackPts[i][1], trackPts[i][2]);
+  const from = new Date(trackPts[0][0]).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return t('histSummary', trackPts.length.toLocaleString(locale()), from, nf(km, km < 100 ? 1 : 0), trackSrc.join(' + ') || t('srcBrowser'));
+}
+function trackCsv() {
+  const v = ships.get(trackFor) || {};
+  const rows = ['time_utc,latitude,longitude,sog_kn,cog_deg', ...trackPts.map(p => [new Date(p[0]).toISOString(), p[1].toFixed(6), p[2].toFixed(6), p[3] ?? '', p[4] ?? ''].join(','))];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' }));
+  a.download = `track_${trackFor}_${(v.name || '').replace(/[^A-Za-z0-9]+/g, '_')}.csv`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function histControls() {
+  const on = trackOn && trackFor === shipSel;
+  return `<div class="hist-row">
+      <select id="hist-hours" aria-label="${t('histBtn')}">${[1, 6, 24, 72, 168].map(h => `<option value="${h}" ${h === histHours ? 'selected' : ''}>${t('histHours', h)}</option>`).join('')}</select>
+      <button class="btn ${on ? 'on' : ''}" id="hist-btn">${on ? t('histHide') : t('histBtn')}</button>
+      ${on && trackPts.length ? `<button class="btn" id="hist-csv">${t('histCsv')}</button>` : ''}
+    </div>${on ? `<p class="note">${trackSummary()}</p>` : ''}`;
+}
+function wireHist() {
+  if (!$('hist-btn')) return;
+  $('hist-hours').onchange = e => { histHours = Number(e.target.value); if (trackOn && trackFor === shipSel) loadTrack(); };
+  $('hist-btn').onclick = () => { if (trackOn && trackFor === shipSel) { hideTrack(); renderShip(); } else loadTrack(); };
+  if ($('hist-csv')) $('hist-csv').onclick = trackCsv;
+}
+// วาดเส้นทางบนแผนที่ 2D (เรียกจาก drawShips2d)
+function drawTrack2d(X, Yp, W, H) {
+  trkHits2d = [];
+  if (!trackOn || !trackPts.length) return;
+  const u = []; let off = 0;
+  trackPts.forEach((p, i) => { if (i) { const d = p[2] - trackPts[i - 1][2]; if (d > 180) off -= 360; else if (d < -180) off += 360; } u.push([p[2] + off, p[1], i]); });
+  const base = nearShift(u[u.length - 1][0]);
+  for (const d of [-360, 0, 360]) {
+    const sh = base + d;
+    mctx.strokeStyle = 'rgba(255,212,59,.9)'; mctx.lineWidth = 2; mctx.beginPath();
+    u.forEach(([l, la], i) => { const x = X(l + sh), y = Yp(la); i ? mctx.lineTo(x, y) : mctx.moveTo(x, y); });
+    mctx.stroke();
+    mctx.fillStyle = '#FFD43B';
+    for (const [l, la, i] of u) {
+      const x = X(l + sh), y = Yp(la); if (x < -6 || x > W + 6 || y < -6 || y > H + 6) continue;
+      mctx.beginPath(); mctx.arc(x, y, 2.2, 0, 6.2832); mctx.fill();
+      trkHits2d.push(x, y, i);
+    }
+    const [l0, la0] = u[0], x0 = X(l0 + sh), y0 = Yp(la0);
+    mctx.strokeStyle = '#FFD43B'; mctx.lineWidth = 2; mctx.beginPath(); mctx.arc(x0, y0, 5, 0, 6.2832); mctx.stroke();
+  }
+}
+function trackHitAt(cx, cy) {
+  let best = -1, bd = 36;
+  for (let k = 0; k < trkHits2d.length; k += 3) { const d = (trkHits2d[k] - cx) ** 2 + (trkHits2d[k + 1] - cy) ** 2; if (d < bd) { bd = d; best = trkHits2d[k + 2]; } }
+  return best;
+}
+function trackTip(i) {
+  const p = trackPts[i]; if (!p) return '';
+  return `${new Date(p[0]).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}${p[3] != null ? ` · ${nf(p[3], 1)} ${t('kn')}` : ''}${p[4] != null ? ` · ${Math.round(p[4])}°` : ''}`;
 }
 
 // ---------------- มือถือ ----------------
